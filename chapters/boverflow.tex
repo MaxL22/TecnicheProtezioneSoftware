@@ -1,0 +1,152 @@
+% !TeX spellcheck = it_IT
+%Insomma: 
+%4 lezioni sugli attacchi low level
+%4 lezioni sulle difese low level
+%5 lezioni su fuzzing, side channel, symbolic execution, analisi di programmi
+%TL;DR: attacco, difesa, analisi
+\section{Buffer Overflow}
+%Slide 0 Buffer Overflow - Intro
+
+Ci concentriamo su linguaggi low level (e.g., C), i quali tendono a crashare in caso di errori (come buffer overflow), ma un attaccante può \textbf{sfruttare le vulnerabilità} per ottenere informazioni (e.g., Heartbleed, bug SSL che permetteva di leggere tutta la memoria del programma, che su SSL insomma, peso), corrompere memoria, fino ad arbitrary code execution (la macchina comincia ad eseguire altro, diventa una "weird machine"), ecc.\\
+Il crash (ovvero \texttt{segfault}), se analizzato può portare ad un attacco, anche se non tutti i casi sono exploitabili (molti sì).\\
+
+Questo tipo di bug hanno una lunga storia e sono tuttora presenti, e lo saranno finché C e C++ saranno usati. Inoltre è utile studiare l'evoluzione del bug stesso, assieme alle difese create per contrastarlo. Alcune caratteristiche di un attacco/difesa possono risultare presenti anche in altri attacchi.\\
+
+Inoltre, solitamente, l'attacco è molto più semplice della difesa. Per l'attacco mi basta un punto, per la difesa devo essere sicuro di aver coperto tutti i possibili punti di attacco, senza degradare troppo le performance.\\
+
+I sistemi C e C++ sono ancora molto presenti e spesso sono parte di sistemi critici come: 
+\begin{itemize}
+	\item OS, Kernel e relative utilities
+	\item Server che richiedono alte prestazioni (Apache httpd, nginx, MySQL, redis)
+	\item Sistemi embedded (risorse limitate, le performance sono importanti)
+\end{itemize}
+
+La prima versione di buffer overflow funzionante è del 1988: Morris Worm, per poi dare inizio ad una catena di exploit che permettono la compromissione della macchina stessa (a diversi livelli), in qualsiasi caso con un impatto significativo.\\
+
+\newpage
+
+%Slide 1 Buffer Overflow - Memory Layout
+\subsection{Memory Layout}
+Dobbiamo sapere come un programma viene caricato in memoria, in quali zone e di conseguenza cos'è lo stack e quali sono gli effetti delle chiamate a funzione. Parleremo del modello Linux \texttt{x64}, anche se il concetto dell'attacco è universale l'implementazione può cambiare in base a dettagli tecnici (architectural dependent).\\
+
+\textbf{Ogni processo} ha un proprio \textbf{layout di memoria}, con indirizzi che vanno da \texttt{0x00000000} a \texttt{0xffffffff} (per 32 bit, con 64 sarebbero troppo lunghi da scrivere), quindi 4GB di indirizzamento totali.\\
+
+Linux divide:
+\begin{itemize}
+	\item 1GB per il sistema operativo, dall'alto
+	\item 3GB per le applicazioni
+\end{itemize}
+Di conseguenza il primo indirizzo valido per il programma è \texttt{0xbfffffff}, sopra c'è il kernel.\\
+
+Il \textbf{loader carica in memoria} un \textbf{processo} quando questo viene chiamato, occupando la page table ed allestendo la memoria per l'uso del programma. \\
+
+\newpage
+
+Il loader divide la memoria (tra quella adibita al programma, i 3GB di prima) in sezioni:
+\begin{itemize}
+	\item \textbf{Text} per memorizzare il codice del programma
+	\item Zone per dati inizializzati (\textbf{Data}) e non (Block Started by Symbol \textbf{BSS})
+\end{itemize}
+Queste sono \textbf{conosciute a compile time}, mentre
+\begin{itemize}
+	\item \textbf{Stack}
+	\item \textbf{Heap}
+\end{itemize}
+Sono \textbf{dinamiche} e permettono la gestione del programma.
+\begin{center}
+	\includegraphics[width=0.85\linewidth]{img/boverflow/memory_all1}
+\end{center}
+
+Stack e Heap quindi sono zone dinamiche che \textbf{crescono in direzioni opposte} (stack verso il basso).\\
+Nell'heap ci sono le allocazioni dinamiche effettuate dal programmatore stesso (\texttt{malloc} e simili), mentre lo \textbf{stack} viene \textbf{gestito dal compilatore} per memorizzare cose come le chiamate a funzione. \\
+
+\newpage
+
+\subsubsection{Stack}
+All'interno dello stack viene gestita l'esecuzione del programma. Gli \textbf{indirizzi dello stack crescono verso il basso}, partendo da \texttt{0xbfffffff} e scendono. Questo rende possibile l'attacco di buffer overflow stack based, nel modo attualmente esistente.\\
+
+Man mano che viene allocata memoria, lo stack alloca spazio dall'alto verso il basso. \texttt{Push} decrementa il valore dell'indirizzo, \texttt{Pop} lo aumenta.\\
+
+\paragraph{Stack Pointer:} Su architetture Intel, si tratta del \textbf{registro} che tiene conto dell'\textbf{indirizzo a cui è arrivato lo stack}, il valore dello spazio allocato più in basso (ultimo valore allocato, da dove posso ricominciare ad allocare).\\
+
+Il compilatore utilizza lo stack quando vengono chiamate le funzioni, \textbf{nel momento in cui avviene una chiamata a funzione}:
+\begin{itemize}
+	\item viene effettuata la \texttt{push} (istruzione macchina) dei parametri della funzione sullo stack
+	\item l'istruzione macchina \texttt{call} viene chiamata, portando l'esecuzione all'indirizzo di memoria del codice della funzione
+	\item la \texttt{call} effettua anche la \texttt{push} sullo stack dell'indirizzo di ritorno di una funzione, ovvero da dove proseguire l'esecuzione al termine della funzione 
+\end{itemize} 
+%Viene effettuata la push e poi la call? Check
+
+Dopo queste istruzioni comincia l'esecuzione della funzione. All'\textbf{interno dello stack} vengono \textbf{memorizzate le variabili locali}, quindi viene effettuata una \texttt{push} di queste variabili all'interno dello stack.\\
+
+\newpage
+
+Al termine dell'esecuzione ci sarà un'istruzione \texttt{ret} che fa tornare l'\textbf{esecuzione all'indirizzo puntato dal return address} memorizzato in precedenza sullo stack (anche senza \texttt{return} esplicito, serve a continuare l'esecuzione del programma dopo la funzione).\\
+
+La funzione di \texttt{ret}: 
+\begin{itemize}
+	\item libera la zona dedicata alle variabili locali, \texttt{pop} di tutte le variabili memorizzate sullo stack
+	\item carica nell'instruction pointer (o program counter, registro che tiene traccia dell'istruzione da eseguire) il valore del return address (indirizzo della prossima istruzione che deve eseguire il processore)
+\end{itemize}
+Bisogna deallocare anche i parametri allocati sullo stack ma chi lo effettua dipende dalla calling convention del compilatore, quindi può farlo il chiamato o il chiamante (i.e., il pop di quei valori verrà effettuato prima o dopo il \texttt{ret}).\\
+
+In ordine, dall'alto verso il basso, all'interno dello stack saranno presenti: 
+\begin{itemize}
+	\item Parametri 
+	\item Return address
+	\item Variabili locali
+\end{itemize}
+
+\newpage
+
+\subsection{Stack-based Overflow}
+
+Esempio di bug: 
+\begin{minted}{c}
+void f (par){
+	char buf[10];
+	strcpy(buf, par);
+}
+\end{minted}
+
+La funzione \textbf{non controlla dimensioni di sorgente e destinazione}, quindi cosa succede se l'\textbf{elemento da copiare è più grande} della \textbf{memoria} che gli è stata \textbf{allocata} (ovvero la dimensione del buffer destinazione)?\\
+
+Lo \textbf{stack} sarà \textbf{composto da}:
+\begin{itemize}
+	\item parametri della funzione, \texttt{par} in questo caso
+	\item return address
+	\item variabili locali, qui solo il buffer destinazione
+\end{itemize} 
+
+Se la dimensione del buffer da copiare è maggiore del buffer allocato il programma \textbf{andrà a sovrascrivere i valori precedenti nello stack} (lo stack alloca dall'alto verso il basso, ma gli indirizzi del buffer vanno dal basso verso l'alto, l'indice 1 è più in basso dell'indice 8, per mantenere coerente l'aritmetica con i puntori, I guess). \\
+
+Il valore sopra il buffer nello stack è il return address, che porterà a tornare ad un indirizzo casuale se sovrascritto, portando ad un \texttt{segfault}.\\
+
+Non c'è un controllo che limiti la scrittura alla dimensione del buffer, portando a sovrascrivere altre parti dello stack.\\
+
+\newpage
+
+\subsubsection{Code Injection}
+Come possiamo sfruttare questa situazione? Tramite buffer overflow posso avere il controllo sul return address; control flow hijacking.\\
+
+Per arrivare ad \textbf{eseguire codice arbitrario} devo
+\begin{itemize}
+	\item definire il codice
+	\item iniettarlo in memoria
+	\item cambiare il valore del return address in modo che punti a quella zona di memoria
+\end{itemize}
+
+\paragraph{Definire il codice:} Il processore legge solamente stringhe di byte che corrispondono alle istruzioni da eseguire. Noi dobbiamo costruire un bytestream a partire da del codice sorgente che vogliamo eseguire. Un bytestream che chiama \texttt{/bin/bash} diventa uno shellcode.\\
+Dobbiamo forgiare un bytestream adatto alle nostre esigenze, manualmente prendendolo da del codice eseguito o tramite tool appositi (più facile solitamente).
+
+\paragraph{Injection Vector:} Per metterlo in memoria, il posto ideale sarebbe il \textbf{buffer} che abbiamo \textbf{già a disposizione}. L'\textbf{input} viene \textbf{copiato nel buffer}, il quale è sullo stack. Quindi inserendo il bytestream all'interno dell'input posso inserirlo in memoria all'interno del buffer.\\
+
+Dobbiamo \textbf{costruire un input} che fa partire l'esecuzione del codice voluto (chiamato injection vector). Sarà quindi composto dal \textbf{bytestream del codice} (e.g., shellcode) e dal \textbf{valore che sovrascriverà il return address}, ovvero l'indirizzo del buffer (come trovarlo?). \\
+Nell'esempio sopra ci saranno 10 byte per lo shellcode (dimensione allocata per il buffer) e 4 byte per il return address (considerando architetture a 32 bit).\\
+In questo modo, quando il programma torna dalla funzione, porrà nel program counter l'indirizzo del buffer, contenente il bytestream forgiato da noi. La sequenza di istruzioni posta nel buffer sarà quindi interpretata come codice. Abbiamo dirottato il control flow, portando all'esecuzione di codice arbitrario.\\
+
+\paragraph{Spatial memory error:} Stiamo "mischiando" dati dell'utente e control channel (comandi di controllo), problematica comune a più vulnerabilità e possibili ambiti. Sovrascriviamo nello spazio dei caratteri di controllo. L'esecuzione di codice arbitrario avviene al ritorno della funzione vulnerabile.\\
+
+Adesso ci sono protezioni che bloccano esecuzione di codice all'interno dello stack, non è una zona di memoria che dovrebbe contenere codice (anche se ci sono anche casi particolari) e l'esecuzione di codice presente in zone di memoria simili è bloccata.\\
+
+%End L1
