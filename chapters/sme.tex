@@ -4,7 +4,7 @@
 %4 lezioni sulle difese low level
 %5 lezioni su fuzzing, side channel, symbolic execution, analisi di programmi
 %TL;DR: attacco, difesa, analisi
-\section{Buffer Overflow}
+\section{Spatial Memory Errors}
 %Slide 0 Buffer Overflow - Intro
 
 Ci concentriamo su linguaggi low level (e.g., C), i quali tendono a crashare in caso di errori (come buffer overflow), ma un attaccante può \textbf{sfruttare le vulnerabilità} per ottenere informazioni (e.g., Heartbleed, bug SSL che permetteva di leggere tutta la memoria del programma, che su SSL insomma, peso), corrompere memoria, fino ad arbitrary code execution (la macchina comincia ad eseguire altro, diventa una "weird machine"), ecc.\\
@@ -54,7 +54,7 @@ Queste sono \textbf{conosciute a compile time}, mentre
 \end{itemize}
 Sono \textbf{dinamiche} e permettono la gestione del programma.
 \begin{center}
-	\includegraphics[width=0.85\linewidth]{img/boverflow/memory_all1}
+	\includegraphics[width=0.85\linewidth]{img/sme/memory_all1}
 \end{center}
 
 Stack e Heap quindi sono zone dinamiche che \textbf{crescono in direzioni opposte} (stack verso il basso).\\
@@ -150,3 +150,133 @@ In questo modo, quando il programma torna dalla funzione, porrà nel program cou
 Adesso ci sono protezioni che bloccano esecuzione di codice all'interno dello stack, non è una zona di memoria che dovrebbe contenere codice (anche se ci sono anche casi particolari) e l'esecuzione di codice presente in zone di memoria simili è bloccata.\\
 
 %End L1
+
+\newpage
+
+\subsection{Heap}
+
+\subsubsection{Heap vs Stack}
+Lo \textbf{stack} è principalmente gestito dal compilatore per allocazioni \textbf{statiche} della memoria, conosciute a compile time. Inoltre tutti i metadati utili al programma sono memorizzati sullo stack. Un esempio di metadato è il return address per il ritorno di una funzione. \\
+
+Questo è solitamente nascosto al programmatore, se la dimensione dei dati non è nota a priori viene usato l'\textbf{heap}, una memoria comandata (allocazione e liberazione) dal programmatore tramite funzioni di libreria. Generalmente più lenta ed a \textbf{gestione manuale}.  Solitamente usato per oggetti, structs ed in generale elementi più grandi.\\
+
+Lo stack cresce dell'alto verso il basso (indirizzi), mentre l'heap cresce dal basso verso l'alto. Una \texttt{push} sullo stack sposta il \texttt{rsp} verso il basso (e, di conseguenza, la \texttt{pop} verso l'alto). In caso di un utilizzo troppo elevato di memoria si possono "incontrare" le due zone (hai finito la memoria).\\
+
+La vulnerabilità già vista sullo stack nasce dal "mischiare" dati inseriti dall'utente con metadati che permettono di alterare il flusso di controllo del programma.\\
+
+le due funzioni principali per gestire la memoria nell'heap sono: 
+\begin{itemize}
+	\item \texttt{malloc(size)}: restituisce un puntatore ad una zona di memoria con dimensione \texttt{size}
+	\item \texttt{free(ptr)}: dato un puntatore, libera la zona di memoria associata
+\end{itemize}
+
+%\subsubsection{Heap overflow}
+Anche nell'heap sono presenti metadati, e di conseguenza la possibilità di sovrascriverli, portando a possibili vulnerabilità.\\
+
+\paragraph{Allocatori:} Definiti nelle librerie di sistema, per gestire le zone di memoria allocate servono comunque dei metadati. L'allocatore gestisce i propri dati all'interno dell'heap stesso (problema di canale).
+
+\newpage
+
+\subsubsection{Heap Chunk} 
+
+\paragraph{Heap Chunk:} Struttura dati per la memoria nell'heap. Struttura:
+\begin{minted}{c}
+struct malloc_chunk {
+	INTERNAL_SIZE_T 	prev_size; 
+	INTERNAL_SIZE_T 	size; 
+	
+	struct malloc_chunk* 	fd;
+	struct malloc_chunk* 	bk;
+	
+	struct malloc_chunk* 	fd_nextsize;
+	struct malloc_chunk* 	bk_nextsize;
+	};
+\end{minted}
+I ordine, i parametri sono:
+\begin{itemize}
+	\item \texttt{prev\_size}: dimensione della zona di memoria precedente, usato solo se il chunk è libero
+	\item \texttt{size}: dimensione della zona di memoria occupata da questo chunk, overhead compreso
+	\item \texttt{fd}, \texttt{bk}: puntatori alle zone di memoria precedenti e successive nella lista di chunk liberi (e di conseguenza presenti solo se il blocco è libero)
+	\item \texttt{fd\_nextsize}, \texttt{bk\_nextsize}: puntatori alle dimensioni degli elementi adiacenti nella lista di chunk liberi (usati solo se il chunk è libero)
+\end{itemize}
+\begin{center}
+	\includegraphics[width=\linewidth]{img/sme/heapchunk}
+\end{center}
+I chunk occupati contengono solo \texttt{size} e i dati. Il puntatore di ritorno ottenuto tramite \texttt{malloc} punta all'inizio della zona contenente i dati. \\
+
+\newpage
+
+\subsubsection{Allocare e deallocare memoria}
+
+\paragraph{Allocazione:} All'inizio dell'esecuzione si ha un top chunk, che rappresenta tutta la grandezza dell'heap. Si ha un puntatore al top chunk chiamato \texttt{av\_top}; inizialmente questo puntatore coincide con la base della memoria. In seguito ad una \texttt{malloc}, viene allocata la zona di memoria richiesta, restituendo i relativi puntatori, e di conseguenza  \texttt{av\_top} viene spostato "sopra" al blocco allocato, deve puntare sempre alla zona di memoria "rimanente"; il top chunk decresce in seguito all'allocazione.\\
+
+\paragraph{Deallocazione:} Oltre allo spazio libero del top chunk sono presenti delle liste di free chunk, una per ogni dimensione di chunk liberi (se posso occupare la memoria esatta lo faccio, serve a ridurre la frammentazione). Quando viene richiesta un'allocazione, prima cerca se c'è una zona di memoria "grande giusta" (o poco più, se mi servono 256 byte cerco nella lista di blocchi liberi da 256 byte), se non c'è una zona adatta nelle liste di chunk liberi allora prende la memoria dal top chunk.\\
+
+Nel caso in cui due chunk adiacenti diventino liberi, vengono collassati in uno solo e lo inserisce nella lista rilevante.\\
+
+\vfill
+
+\begin{minipage}{0.43\textwidth}
+	\textbf{Allocazione:}
+	\begin{itemize}
+		\item Richiesta di memoria (\texttt{malloc})
+		\item Ricerca di un blocco libero (prima dalle liste, eventualmente si usa il top chunk)
+		\item Aggiornamento della struttura di gestione (metadati)
+		\item Restituzione del puntatore
+	\end{itemize}
+\end{minipage}
+\hfill
+\begin{minipage}{0.43\textwidth}
+	\textbf{Deallocazione:}
+	\begin{itemize}
+		\item Richiesta di rilascio (\texttt{free})
+		\item Il blocco viene marcato come libero 
+		\item Coalescenza di blocchi adiacenti (se presenti, si fondono blocchi liberi adiacenti in uno solo)
+		\item Aggiornamento della struttura di gestione
+	\end{itemize}
+\end{minipage}
+
+\newpage
+
+\subsection{Heap Overflow}
+
+\subsubsection{Unlink}
+Quando viene effettuata una allocazione bisogna aggiornare i puntatori, il nodo occupato va "sganciato" dalla lista (doppiamente concatenata) di blocchi liberi, e di conseguenza i puntatori del blocco successivo e precedente vanno aggiornati (sai come si rimuove un elemento da una lista dai). La procedura è
+\begin{minted}{c}
+void unlink(malloc_chunk *P, malloc_chunk *BK, 
+	malloc_chunk *FD) {
+		FD = P->fd;
+		BK = P->bk;
+		FD->bk = BK;
+		BK->fd = FD;
+}
+\end{minted}
+Dove: 
+\begin{itemize}
+	\item \texttt{P} nodo da eliminare
+	\item \texttt{BK} nodo precedente
+	\item \texttt{FD} nodo successivo 
+\end{itemize}
+"Stacco" il nodo da eliminare facendo puntare il puntatore \texttt{bk} del nodo successivo al nodo precedente e viceversa.\\
+
+\newpage
+
+\subsubsection{Exploit "Naive"}
+Se non è presente nessun controllo durante le scritture, una write troppo grande può andare a sovrascrivere i chunk (liberi o occupati) superiori, metadati compresi.\\
+
+Nello specifico, posso sovrascrivere il \texttt{FD->bk} e \texttt{P->bk}, rispettivamente con l'indirizzo di un return address e un indirizzo di un buffer (injection vector).\\
+\begin{minted}{c}
+	FD->bk = return address address;
+	FD = P->fd;
+	BK = P->bk = address of the buffer;
+	FD->bk = BK;
+\end{minted}
+
+Partendo da un heap con dei chunk liberi e la relativa lista, facendo overflow in un chunk occupato sottostante si può sovrascrivere il puntatore \texttt{bk} di due chunk vuoti con indirizzi determinati dall'attaccante (rispettivamente, un blocco con inizio di un buffer con codice malevolo, il blocco dopo con l'indirizzo del return address di una funzione).\\
+
+Quando il programma andrà ad allocare il primo dei blocchi con i valori sovrascritti dovrà rimuoverlo dalla lista di blocchi liberi, quindi eseguire la procedura di unlink: il \texttt{bk} del blocco "sganciato" punta al buffer contenente qualcosa (e.g., shellcode, inizio di un buffer controllato dall'attaccante, in qualsiasi modo), mentre il \texttt{bk} blocco successivo punta al return address di una funzione, il quale verrà sovrascritto con l'indirizzo del buffer (procedura di unlink), portando il programma ad eseguire il codice all'interno del buffer una volta che il programma dovrà seguire il return address sovrascritto.\\
+
+Questo exploit è stato patchato controllando che \texttt{FD} e \texttt{BK} puntino effettivamente l'uno all'altro, non si può più sparare allo stack.\\
+
+%up to s11
+% Missing House of Force attack
