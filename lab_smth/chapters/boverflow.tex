@@ -1,0 +1,38 @@
+% !TeX spellcheck = it_IT
+
+\section{Buffer Overflow}
+
+Per gli esercizi di pwncollege, in generale abbiamo a disposizione un buffer e dobbiamo far eseguire una funzione \texttt{win()}, in qualche modo (dipende dall'esercizio, ma generalmente sovrascrivendo l'indirizzo di ritorno della funzione \texttt{challenge()} con l'indirizzo di \texttt{win()}), al fine di ottenere una flag.\\
+
+
+Per capire la dimensione del buffer: 
+\begin{itemize}
+	\item Ghidra: la notazione di ghidra fa riferimento all'inizio dello stack, se il buffer è chiamato \texttt{local\_a8}, l'inizio dello stack (e di conseguenza l'inizio dell'indirizzo di ritorno della funzione) si trova \texttt{0xa8} bit prima del buffer (i.e., devo sovrascrivere 168 byte, 160 di buffer e cose varie poi 8 di indirizzo di ritorno)
+	%TODO find out bitch
+	\item gdb: guardo l'indirizzo del buffer, cercando dove viene popolato rispetto al RBP (poi ci sono 8 byte di Saved Frame Pointer SFP, poi il return address). Non so come si faccia tbh, dovrei scoprirlo.
+	\item Stringhe cicliche: scrivo $n$ indirizzi di memoria diversi (valori casuali) e guardo il core dump: lo stato dei registri mostra il valore dell'instruction pointer, ovvero quale dei $n$ diversi indirizzi ha fatto crashare il programma, se è il $10^o$ indirizzo allora la distanza è $10 \cdot 8$, potremmo farlo a mano, oppure usare pwntools:
+	\begin{itemize}[label*=]
+		\item \texttt{elf = ELF('')} per definire l'eseguibile
+		\item \texttt{io = elf.process(setuid=False)} per dire di non usare il \texttt{suid} (altrimenti il programma non fornisce il core dump)
+		\item \texttt{io.sendline(cyclic(512, n=8))} genera la stringa ciclica, 512 byte in blocchi 8
+		\item \texttt{io.wait()} aspetta il crash
+		\item \texttt{print(cyclic\_find(io.corefile.fault\_addr, n=8))}: dall'indirizzo da cui è crashato il programma estrapola la distanza dall'inizio dello stack, usando indirizzi da 8 byte
+	\end{itemize}
+\end{itemize}
+Quest'ultimo  meccanismo non funziona con canary o stack protection. Checksec sul binario (da pwntools) restituisce le protezioni sull'eseguibile. \\
+
+%Per capire quanto devo scrivere: 
+%* il secondo parametro della read è l'indirizzo dove verrà scritto il buffer
+%* vado a ritroso per capire quando viene popolato l'indirizzo
+%* magic I guess
+%* trovo la distanza tra buffer e inizio dello stack, da aggiungere gli 8 byte di SFP
+
+Se all'interno della funzione \texttt{win()} c'è il check di un parametro all'inizio della funzione, posso:
+\begin{itemize}
+	\item usare dei "gadget" (to be continued)
+	\item andare ad un istruzione dopo il controllo, al posto dell'indirizzo iniziale della funzione \texttt{win()} scrivo l'indirizzo di una istruzione all'interno della funzione dopo il check
+\end{itemize}
+
+%Ma cosa stai dicendo
+%* metto un break alla fine della funzione challenge, all'istruzione dopo il base pointer tornerà a puntare al vecchio stack frame, la ret popperà dallo stack il valore dell'indirizzo di ritorno sul RIP. Nel momento in cui deve eseguire la ret, su RSP ci sarà l'indirizzo del valore dell'indirizzo di ritorno, da sottrarre all'indirizzo dell'inizio del buffer da scrivere, in modo da trovare l'offset
+
