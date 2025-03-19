@@ -280,3 +280,131 @@ Questo exploit è stato patchato controllando che \texttt{FD} e \texttt{BK} punt
 
 %up to s11
 % Missing House of Force attack
+
+\newpage
+
+\subsubsection{House of Force}
+
+Dopo la patch per la correzione dell'unlink sono nate nuove tecniche per sfruttare l'heap overflow, le principali si chiamano:
+\begin{itemize}
+	\item The House of Prime
+	\item The House of Mind
+	\item \textbf{The House of Force}
+	\item The House of Lore
+	\item The House of Spirit
+	\item The House of Chaos
+\end{itemize}
+
+Verrà mostrata solo la House of Force, spiegazioni ed esempi per le altre possono essere trovate \href{https://github.com/shellphish/how2heap}{\texttt{a questo indirizzo}}. Ognuna di queste sfrutta diverse funzionalità dell'allocatore per attuare un attacco.\\
+
+Tutte le tecniche citate hanno delle \textbf{condizioni per poter essere utilizzate}, la sola presenza della vulnerabilità non vuol dire che possa essere sfruttata.\\
+
+Il \textbf{fuzzing} è il processo di trovare vulnerabilità nel programma, cercando crash del programma. Dopo aver trovato la vulnerabilità (i.e., il crash) bisogna analizzare se nel punto del programma che causa il crash ci sono le condizioni per un attacco vero e proprio, c'è da capire su che possibile vulnerabilità bisogna concentrarsi.\\
+
+Un possibile ambito di ricerca sono gli AEG Automatic Exploit Generation: software per costruire in automatico attacchi a partire da possibili vulnerabilità (crash).\\
+
+\newpage
+
+Esempio di programma vulnerabile ad House of Force:
+\begin{minted}{c}
+char *buf1, *buf2, *buf3;
+
+buf1 = malloc(256);
+strcpy(buf1, argv[1]);
+
+buf2 = malloc(strtoul(argv[2], NULL, 16));
+buf3 = malloc(256);
+strcpy(buf3, argv[3]);
+
+free(buf3);
+free(buf2);
+free(buf1);
+\end{minted}
+
+Condizioni necessarie per questo exploit:
+\begin{itemize}
+	\item avere una prima malloc su un numero arbitrario di byte (fisso, non importante, \texttt{buf1} nell'esempio)
+	\item avere una \texttt{strcpy()} sul buffer precedente (\texttt{buf1})
+	\item avere un'altra \texttt{malloc} comandata dall'attaccante, i.e., la cui dimensione è definita in modo dinamico tramite input, in qualche modo (\texttt{buf2})
+	\item avere un'altra \texttt{malloc} non comandata dall'attaccante, in cui l'attaccante può scrivere (anche in modo controllato, basta poter scrivere)
+\end{itemize}
+Al termine del programma ci saranno le free.\\
+
+\newpage
+
+Cosa succede sull'heap quando queste tre condizioni sono soddisfatte?
+%Disegno
+% Heap, rettangolo 
+% Prima situazione: top chunk su tutto l'heap, con freccia per av\_top al termine
+% Mostra l'allocazione del primo buffer, dal basso verso l'alto, mostra puntatore
+% Mostra che la strcpy permette di sovrascrivere i metadati del top chunk
+
+\begin{center}
+	\begin{tikzpicture}[scale=0.5]
+		% Draw the main rectangle
+		\draw (0,0) rectangle (4,9);
+		
+		% Draw the divisions
+		\draw (0,0.7) -- (4,0.7); % Bottom small section
+		\draw (0,1.4) -- (4,1.4); % Middle small section
+		
+		% Labels
+		\node at (2,5) {\texttt{Top Chunk}}; % Large section label
+		\node at (2,1.05) {\texttt{size}}; % Middle small section label
+		\node at (2,0.35) {\texttt{prev\_size}}; % Bottom small section label
+		
+		\draw[->] (-2,1.4) -- (-0.1,1.4);
+		\node[above left] at (-0.1,1.4) {\texttt{av\_top}};
+		
+		\draw[thick, ->] (5,4.5) -- (9,4.5);
+		\node[above] at (7,4.5) {\texttt{buf1 malloc}};
+		
+		% Draw the main rectangle
+		\draw (10,0) rectangle (14,9);
+		
+		% Draw the divisions
+		\draw (10,0.7) -- (14,0.7); % Bottom small section
+		\draw (10,1.4) -- (14,1.4); % Middle small section
+		
+		\draw (10,4) -- (14,4); 
+		\node at (12,2.7) {\texttt{buf1}};
+		
+		\node at (12,1.05) {\texttt{size}}; % Middle small section label
+		\node at (12,0.35) {\texttt{prev\_size}}; % Bottom small section label
+		
+		\draw (10,4.7) -- (14,4.7); % Bottom small section
+		\draw (10,5.4) -- (14,5.4); % Middle small section
+		
+		\node at (12,5.05) {\texttt{size}}; % Middle small section label
+		\node at (12,4.35) {\texttt{prev\_size}}; % Bottom small section label
+		
+		\node at (12,6.8) {\texttt{Top Chunk}};
+		
+		\draw[->] (8,1.4) -- (9.9,1.4);
+		\node[above left] at (9.9,1.4) {\texttt{*buf1}};
+		
+		\draw[->] (8,5.4) -- (9.9,5.4);
+		\node[above left] at (9.9,5.4) {\texttt{av\_top}};
+		
+		\draw[red, thick, ->] (15,0) -- (15,5.4);
+		\node[red, right] at (15,2.7) {\texttt{strcpy}};
+	\end{tikzpicture}
+\end{center}
+
+Quindi possiamo arrivare a sovrascrivere la \texttt{size} del top chunk, permettendo di dire al programma quanto spazio libero rimane all'interno. Questa è il primo problema: metadato size del top chunk modificabile dall'attaccante. A questo punto posso "incrementare" la memoria dell'heap (dimensione di \texttt{size}) fino a \textbf{tutta la memoria del processo indirizzabile}, la \texttt{size} è determinata unicamente in modo software. Posso andare ad indirizzare nell'intera memoria del processo.\\
+
+Una volta "allargato tutto", l'attaccante può andare in un punto arbitrario della memoria da sovrascrivere. L'heap adesso include stack, .text ed in generale tutta la memoria. Posso sovrascrivere una zona di memoria arbitraria con un qualsiasi valore. Ad esempio, sovrascrivendo un \texttt{return address} sullo stack.\\
+
+Abbiamo ingannato l'allocatore per \textbf{includere lo stack nello spazio indirizzabile dall'heap}, permettendoci di sovrascrivere una zona di memoria arbitraria.\\
+
+La seconda \texttt{malloc} ha un'ampiezza comandata dall'attaccante, il che ci permette di \textbf{raggiungere la base dello stack}, dove c'è il \texttt{return address} che si vuole sovrascrivere (questa è una dimensione variabile, $\Delta$ tra posizione \texttt{dell'av\_top} e posizione del \texttt{return address}, da calcolare).\\
+
+\newpage
+
+Dopo una \texttt{malloc} di dimensione $\Delta$, l'\texttt{av\_top} sarà nello stack, la terza allocazione di dimensione $n$ (fissa), partirà dall'\texttt{av\_top} (in questo momento stiamo presupponendo non ci siano liste libere, altrimenti bisogna stare un po' più attenti) e quando comincio a scrivere in quest'ultimo buffer (ultima \texttt{strcpy}, comandata dall'attaccante) starò sovrascrivendo il \texttt{return address}, magari con un indirizzo di una zona di memoria il cui contenuto è controllato dall'attaccante (anche nell'heap, generalmente la zona dati non è eseguibile, ma ci sono dei casi in cui potrebbe esserlo).\\
+
+\vfill 
+
+\paragraph{TL;DR:} Inganniamo l'allocatore nel pensare che il top chunk sia più grande di quanto non sia realmente, tramite overflow, per poi andare a sovrascrivere una zona di memoria arbitraria in una scrittura successiva.\\
+
+%Esempi e utilizzo sul link
