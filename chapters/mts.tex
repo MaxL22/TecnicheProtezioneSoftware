@@ -1,0 +1,70 @@
+% !TeX spellcheck = it_IT
+
+\section{Memory Safety and Type Safety}
+
+Tutti gli errori descritti nelle sezioni precedenti nascono da un \textbf{utilizzo errato della memoria}, nei linguaggi che lo permettono. Utilizzare \textbf{linguaggi memory safe} permetterebbe di evitare le problematiche descritte precedentemente, ma il degrado delle performance potrebbe non essere accettabile per alcuni casi d'uso.\\
+Memory safety e type safety sono due proprietà intrinseche ad alcuni linguaggi di programmazione che permettono di bloccare la possibilità di effettuare gli attacchi descritti in precedenza.\\
+
+Le \textbf{difese} possono essere a \textbf{livello} di: 
+\begin{itemize}
+	\item \textbf{compilatore}: come le canary, usate per rilevare una eventuale sovrascrittura del return address
+	\item \textbf{sistema operativo}: come il Address Space Layout Randomization ASLR, che impedisce di sapere le posizioni esatte dei valori in memoria
+	\item \textbf{architetturale}: componenti hardware che permettono di bloccare gli attacchi
+\end{itemize}
+
+Per contrastare ASLR sono nati gli attacchi Return Oriented Programming ROP, e per contrastare questi esiste la Control Flow Integrity CFI (controllo sulle transizioni del programma, se va "fuori dagli schemi" la transizione è bloccata, come ad esempio cambiando il return address). \\
+
+\subsection{Memory Safety }
+Sicurezza della memoria, si tratta di una proprietà fondamentale di alcuni linguaggi (detti memory safe). Un programma scritto in un linguaggio memory safe:
+\begin{itemize}
+	\item Permette di creare puntatori solo attraverso alcuni mezzi standard; si vogliono intercettare i punti di creazione dei puntatori
+	\item Permette di usare puntatori solo per accedere a memoria che "appartiene" a quel puntatore; un puntatore che appartiene ad una zona di memoria deve accedere effettivamente a quella zona di memoria 
+\end{itemize}
+Combina le idee di temporal safety (accedere solo a memoria attualmente allocata/valida) e spatial safety (accedere solo a memoria valida).\\
+
+\subsubsection{Spatial safety}
+Ci permette di far valere la proprietà di sicurezza spaziale della memoria, ovvero andare a vedere che un puntatore non vada a puntare oltre una zona di memoria stabilita.\\
+
+\paragraph{Fat Pointers:} Un puntatore non è più "solo un puntatore", ma diventa una tripla $(p,b,e)$ dove: 
+\begin{itemize}
+	\item $p$ è il puntatore effettivo
+	\item $b$ è la base della zona di memoria a cui può accedere
+	\item $e$ è l'estensione/limite della zona a cui può accedere
+\end{itemize}
+
+L'accesso è permesso se e solo se 
+$$b \leq p \leq e - \text{\texttt{sizeof(typeof(} $p$ \text{\texttt{))}}} $$
+
+Ogni puntatore ha un tipo, quindi "quanto si può spostare" è determinato anche dalla dimensione del tipo puntato (se è su int di 4 byte non posso puntare al penultimo byte, andrei fuori per gli ultimi 3). L'aritmetica sui puntatori modifica solo $p$, senza toccare $b$ ed $e$; $p$ si sposta, gli altri due rimangono lì a stabilire i limiti. Deve sempre valere la disuguaglianza.\\
+
+I Fat Pointers sono puntatori che hanno dati aggiuntivi, come la tripla descritta in precedenza; metadati aggiunti ai puntatori.  Effettuare il controllo \textbf{ad ogni accesso} degrada le performance (soprattutto quando non è l'unico controllo da effettuare, questo è solo per la spatial safety). Il controllo è oneroso ed è necessaria una memoria aggiuntiva per i metadati legati ad ogni puntatore.\\
+Il compilatore di un linguaggio memory safe deve instanziare memoria aggiuntiva per ogni puntatore e aggiungere il codice per i controlli, ad ogni accesso.\\
+
+\newpage
+
+\paragraph{Low Fat Pointers:} Si tratta di una variante che vuole ridurre l'overhead in termini di spazio e prestazioni. L'idea è quella di "codificare" all'interno dell'indirizzo stesso i metadati, la rappresentazione nativa del puntatore può inglobare i metadati. La disposizione della memoria viene usata per ricavare le informazioni prima salvate nei metadati in tempo costante.\\
+
+La memoria virtuale viene divisa in "regioni", ciascuna riservata ad oggetti di dimensioni simili. Questo consente di dedurre la dimensione di un oggetto basandosi solo sull'indirizzo del puntatore (se appartiene a quella regione deve avere una certa dimensione).\\
+
+
+\subsubsection{Temporal Safety}
+Le regioni di memoria possono essere: 
+\begin{itemize}
+	\item \textbf{definite}: allocate e attive
+	\item \textbf{non definite}: non inizializzate, non allocate o deallocate
+\end{itemize}
+
+Quando un puntatore punta ad una zona di memoria non definita è un problema. Per evitare errori serve tener traccia di dove un puntatore punta all'interno delle regioni di memoria. Dobbiamo evitare dangling pointers.\\
+Esempio: 
+\begin{minted}{c}
+p = malloc(4)
+s = p
+free(p)
+\end{minted}
+\texttt{s} rimane dangling.\\
+
+Serve una tabella di memoria per ogni puntatore che punta a tale zone. Quando la zona viene deallocata/diventa non definita, tutti i puntatori che fanno riferimento a quella zona devono essere resi non più validi. Nell'esempio precedente, \texttt{s} dovrebbe essere messo a \texttt{NULL} dopo la deallocazione. Questo richiede un controllo sulla validità del puntatore ad ogni dereferenziazione.\\
+
+La combinazione di spatial e temporal safety si chiama \textbf{memory safety}. Il modo più semplice per ottenerla è utilizzare un linguaggio memory safe. C/C++ non sono memory safe, ma permettono di scrivere codice memory safe, il problema è che \textit{non ci sono garanzie}. Il compilatore potrebbe aggiungere codice per controllare le violazioni, ma rimane sempre il problema dell'inevitabile degrado delle performance (bisogna solo stabilire quanto e  se questo è accettabile).\\
+
+% End L5
