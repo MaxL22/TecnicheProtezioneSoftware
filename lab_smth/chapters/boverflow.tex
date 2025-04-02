@@ -36,3 +36,13 @@ Se all'interno della funzione \texttt{win()} c'è il check di un parametro all'i
 %Ma cosa stai dicendo
 %* metto un break alla fine della funzione challenge, all'istruzione dopo il base pointer tornerà a puntare al vecchio stack frame, la ret popperà dallo stack il valore dell'indirizzo di ritorno sul RIP. Nel momento in cui deve eseguire la ret, su RSP ci sarà l'indirizzo del valore dell'indirizzo di ritorno, da sottrarre all'indirizzo dell'inizio del buffer da scrivere, in modo da trovare l'offset
 
+\subsection{Randomizzazione degli indirizzi ASLR}
+
+Generalmente attivo di default, l'ASLR randomizza la posizione in memoria del programma, di conseguenza rendendo casuali return address e indirizzo del buffer. Ci possono essere diverse implementazioni, con le relative difficoltà, ma in generale è implementato a livello \textbf{kernel}: ogni volta che un programma viene lanciato gli viene assegnata una pagina diversa; gli indirizzi vengono calcolati a runtime tramite offset.\\
+
+Rimane noto l'offset all'interno del programma, ovvero le ultime 3 cifre in esadecimale dell'indirizzo (12 bit, le pagine sono allineate a \texttt{0x1000}). Quindi posso sfruttare questa cosa sovrascrivendo solo gli ultimi 2 byte dell'indirizzo di ritorno e presupponendo che la funzione che vogliamo eseguire non sia "troppo lontana" dal resto. In questo modo sarà casuale solo l'ultima cifra in esadecimale dovuta al paging, ma mi basta ripetere l'esecuzione "qualche volta" (probabilità $1/16$) per indovinare anche l'ultimo carattere.\\
+
+
+\subsection{Canary}
+
+Se presente una canary, dobbiamo leakarla per poi sovrascriverla. Generalmente gli esercizi hanno un \texttt{\%s} e una "backdoor" che fa ripartire la challenge. Facendo overflow del buffer fino alla canary (+1 byte per sovrascrivere il primo \texttt{0x00} della canary, sempre presente) e non inserendo un terminatore di stringa il \texttt{\%s} stamperà il valore della canary, inseribile all'esecuzione successiva della challenge.\\
