@@ -1,0 +1,30 @@
+% !TeX spellcheck = it_IT
+
+\section{Shellcode Injection}
+
+L'obiettivo è iniettare e far eseguire al programma una shellcode (o comunque codice arbitrario). Lo schema più semplice possibile è:
+\begin{itemize}
+	\item ho un buffer in cui posso fare overflow
+	\item scrivo all'interno del buffer una shellcode/codice
+	\item sovrascrivo il return address con l'indirizzo del buffer
+\end{itemize}
+
+Possibili problemi con l'esecuzione della shellcode: 
+\begin{itemize}
+	\item \textbf{stack non eseguibile}: protezione solitamente disabilitata per gli esercizi (RELRO)
+	\item \textbf{shellcode più piccolo del buffer}: devo calcolare quanto padding serve per terminare il buffer ed arrivare al return address
+	\item \textbf{non abbastanza spazio per lo shellcode}: più opzioni
+	\begin{itemize}
+		\item dividere lo shellcode in due parti, la prima avrà un'istruzione "finale" che fa saltare 16 byte in avanti per "skippare" \texttt{SFP} e \texttt{return\_address}, per poi continuare con il codice dello shellcode. Per saltare avanti
+		\begin{itemize}
+			\item \texttt{jmp 0x10} in avanti
+			\item \texttt{mv rax, rip; add rax, 0x10; mov rip, rax}
+		\end{itemize}
+		\item anziché dividere lo shellcode, inizio con del padding fino a sovrascrivere l'indirizzo di ritorno per poi scrivere lo shellcode completo al di sotto (o sopra, punti di vista; di solito sopra lo stack frame corrente c'è tutto lo spazio necessario); padding di \texttt{dim\_buffer+8} byte di \texttt{SFP + 8} byte \texttt{return\_address}
+	\end{itemize}
+\end{itemize}
+
+%TODO 
+%Linka
+Per costruire lo shellcode, msfvenom, a mano, exploitdb, ma per l'esame pwntools permette di crearne con shellcraft.
+%Scrive come con pwntools script
