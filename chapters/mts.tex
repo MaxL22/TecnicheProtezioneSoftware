@@ -68,3 +68,77 @@ Serve una tabella di memoria per ogni puntatore che punta a tale zone. Quando la
 La combinazione di spatial e temporal safety si chiama \textbf{memory safety}. Il modo più semplice per ottenerla è utilizzare un linguaggio memory safe. C/C++ non sono memory safe, ma permettono di scrivere codice memory safe, il problema è che \textit{non ci sono garanzie}. Il compilatore potrebbe aggiungere codice per controllare le violazioni, ma rimane sempre il problema dell'inevitabile degrado delle performance (bisogna solo stabilire quanto e  se questo è accettabile).\\
 
 % End L5
+
+\subsection{Type Safety}
+
+La type safety ha lo scopo di definire su che tipo di dato sono ammissibili quali operazioni, riducendo così le possibili problematiche durante l'esecuzione del programma.\\
+
+Ogni oggetto ha un \textbf{tipo associato} (\texttt{int}, \texttt{int pointer}, \texttt{float}, \dots). Una volta determinati i tipi, posso decidere \textbf{quali operazioni} sono ammissibili per \textbf{quali tipi}. Le operazioni fatte sugli oggetti devono \textit{sempre} essere sempre compatibili con il tipo dell'oggetto, evitando errori, anche run-time.\\
+
+In generale la type safety è \textit{più forte della memory safety}. Esempio memory safe ma non type safe:
+\begin{minted}{c}
+int (*cmp) (char*,char*);
+int *p = (int*) malloc(sizeof(int));
+*p = 1;
+cmp = (int (*)(char*,char*)) p; // Memory safe, not Type safe
+cmp("hello","bye"); // crash!
+\end{minted}
+
+In questo caso è memory safe in quanto abbiamo messo un valore "entro i limiti" all'interno del puntatore a funzione \texttt{cmp}, ma sta tentando di mettere un intero all'interno di un \texttt{type address} (al posto dell'indirizzo della funzione ho \texttt{1}), quindi non è type safe (quindi crasha, \texttt{SEGFAULT}). Se il tipo dei due valori è disallineato la type safety \textbf{nega l'assegnamento}.\\
+
+C/C++ implementano tipi primitivi ma non c'è nessun controllo su \textit{cosa viene assegnato a cosa}. Effettuare questi controlli può essere oneroso, vanno fatti su \textbf{ogni operazione} tra dati. In breve, la type safety costa performance, quindi, anche se ci sono soluzioni, non sempre hanno overhead accettabile. \\
+
+\paragraph{Dynamically Typed Languages:} All'interno dei linguaggi dynamically typed, tutti gli oggetti hanno \textbf{un solo tipo: dinamico}. Ogni operazione su un oggetto di tipo dinamico è permessa, ma tale operazione potrebbe non essere implementata, portando ad un'eccezione.  Tutto è permesso, ma se run-time il tipo effettivo non implementa l'operazione viene sollevata un'eccezione.\\
+
+\paragraph{Enforce Invariants:} Gli invarianti sono delle \textbf{formule logiche} per garantire determinate proprietà sull'esecuzione di dei pezzi di codice, rimane costantemente vero in certi punti del programma. Possono essere fatti valere tramite type safety. Una proprietà che deve rimanere sempre vera durante l'esecuzione del programma.\\
+
+\paragraph{Types for security:} Gli invarianti possono essere usati anche per la sicurezza, generalmente riguardano il controllo del flusso di dati, prevenendo errori logici. Tale controllo del flusso di dati, anche all'interno dello stesso programma, permette di non "\textit{far uscire}" un dato da determinate zone.\\
+
+Esempio: Java with Information Flow (JIF), estensione di Java
+\begin{minted}{java}
+int{Alice -> Bob} x;
+int{Alice -> Bob, Chuck} y;
+x = y; 	//OK: policy on x is stronger
+y = x; 	//BAD: policy on y is not as strong as x
+\end{minted}
+
+\newpage
+
+\subsection{Avoiding Exploitation: Other strategies}
+Sapendo che ogni attacco ha determinati prerequisiti, un modo per prevenirli è fare in modo che le condizioni non si possano presentare. Questo aumenta la complessità dell'attacco, rendendo l'exploit più difficile da sfruttare. \\
+
+Quindi, tento di evitare bug, ma aggiungo protezioni nel caso qualcosa sfugga. Per evitare i bug esistono secure coding practices e tecniche di code review avanzate, come program analysis, fuzzing, \dots.\\
+
+Per evitare l'exploitation, quali sono le fasi di un attacco di stack smashing?
+\begin{itemize}
+	\item scrivere il codice dell'attaccante in una zona di memoria
+	\item fare in modo che \texttt{\%eip} esegua il codice dell'attaccante
+	\item trovare il return address
+\end{itemize}
+Vogliamo inibire una di queste fasi.\\
+
+Come si possono rendere più difficili questi attacchi? Il caso migliore è \textbf{modificare librerie, compilatore e/o sistema operativo}, in modo tale da non dover cambiare il codice dell'applicazione ma avere una soluzione a \textbf{livello architetturale}.\\
+
+\paragraph{Canary:} Per inibire la fase di overflow, ci si è ispirati ai canarini usati dalle miniere: se il canarino muore c'è gas. Possiamo fare una cosa simile per lo stack, scriviamo un valore prima del return address e se al termine dell'esecuzione della funzione (prima di fare il \texttt{ret}) il valore è non è quello definito all'inizio c'è stato un tentativo di stack smashing. Il valore originale va salvato in una zona di memoria safe, e read-only.\\
+
+Come viene scelto il valore della canary: 
+\begin{itemize}
+	\item terminator canaries (\texttt{CR}, \texttt{LF}, \texttt{NUL}, \texttt{-1}): valori non ammessi dallo \texttt{scanf}, l'attaccante non li può inviare come input;
+	\item numero random, scelto ad ogni inizio del processo;
+	\item Random \texttt{XOR} canaries: si sceglie un valore random, ma il return address diventa \texttt{ret} $:=$ \texttt{ret} $\oplus$ \texttt{canary}, tornando al valore originale al termine della funzione, "sabotando" un eventuale indirizzo di ritorno sovrascritto in quanto tornerà ad un valore casuale al posto che all'indirizzo segnato. Permette di risparmiare sullo stack lo spazio della canary.
+\end{itemize}
+
+\paragraph{Data Execution Prevention DEP:} La seconda fase dell'attacco è scrivere in memoria il codice ed eseguirlo. Per evitare che codice dell'attaccante possa essere eseguito si possono \textbf{rendere alcune zone di memoria}, come stack e heap, \textbf{non eseguibili}. In questo modo, se anche viene bypassata la canary, il programma va in panico prima di eseguire codice posizionato nello stack/heap. Nelle zone solo dati non si può eseguire codice (generalmente, esistono casi particolari). Si chiama Data Execution Prevention, non posso iniettare codice eseguibile.\\
+
+\texttt{Return-to-libc:} Metodo trovato per evadere la DEP, l'idea è inserire nel return address funzioni presenti all'interno della libreria di sistema, le quali sono ovviamente eseguibili. L'injection vector sovrascrive il return address con l'indirizzo di una funzione di sistema, preparando lo stack con i parametri corretti per l'esecuzione di tale funzione. Modifico l'esecuzione del codice senza iniettarlo.\\
+
+\paragraph{Address Space Layout Randomization ASLR:} Randomizzare il layout di memoria, ogni volta che il processo va in memoria vengono usate zone di memoria differenti, ho un sacco di spazio, metto dove voglio il programma. In questo modo i valori esatti degli indirizzi di memoria sono sconosciuti, permette di inibire l'ultima fase di sovrascrittura del return address: se non so dove sia il mio codice non so dove far puntare il return address. Permette anche di evitare gli attacchi come \texttt{return-to-libc} randomizzando la posizione delle librerie di sistema.\\
+
+Esistono diverse implementazione, ma in generale bisogna notare che:
+\begin{itemize}
+	\item sposta solo l'offset delle zone di memoria, non le posizioni relative all'interno di essere
+	\item potrebbe essere applicato solo alle librerie (sempre position indipendent), non al codice del programma (potrebbero esserci riferimenti "statici" a zone del programma)
+	\item servono abbastanza bit random, altrimenti si può fare brute-force (su architettura 32 bit non è sicuro, su 64 è già molto meglio)
+\end{itemize}
+
+%End L6
