@@ -1,0 +1,171 @@
+% !TeX spellcheck = it_IT
+\section{Return Oriented Programming ROP}
+
+Prevenzione ed attacchi si "inseguono" sempre:
+\begin{itemize}
+	\item \textbf{Difesa}: stack/heap non eseguibile per prevenire iniezione di codice; \textbf{attacco}: jump/return to libc
+	\item \textbf{Difesa}: nascondere gli indirizzi di memoria e return address con ASLR; \textbf{attacco}: ricerca brute force (32 bit) o information leak (format string)
+	\item \textbf{Difesa}: non usare codice in libc ma usare solo codice all'interno del text del programma, si riducono le funzioni di libreria legate all'utilizzo del processo stesso, vengono caricate solo le parti necessarie; \textbf{attacco}: costruire le funzionalità che servono tramite Return Oriented Programming ROP
+\end{itemize}
+
+%Add paper link
+Il Return Oriented Programming nasce dall'esigenza di limitare il numero di funzioni che un processo usa per la propria esecuzione. Introdotta per la prima volta nel 2007 da Hovav Shacham (\href{https://www.ush.it/team/ascii/geometry.pdf}{\textit{\texttt{The Geometry of Innocent Flesh on the Bone: Return-into-libc without Function Calls}}}). \\
+L'idea di base è: prendo pezzi di codice dalle funzioni presenti in memoria e le unisco per "costruire" un attacco, ovvero il programma voluto dall'attaccante. Si può dimostrare che, con una codebase sufficiente, gli elementi costruibili sono Turing-compatibili.  I pezzi di codice usati si chiamano \textbf{gadget}. Si tratta di una nuova tecnica per eseguire codice sfruttando una vulnerabilità (sempre buffer overflow).\\
+
+Le "sfide" di questo attacco sono 
+\begin{itemize}
+	\item trovare i gadget
+	\item collegarli
+\end{itemize}
+
+Ma \textit{cosa sono i gadget}? Si tratta di sequenze di istruzioni (assembly) che terminano con un \texttt{ret}. Si "trasforma" il processo di esecuzione (il programma diventa una \href{https://en.wikipedia.org/wiki/Weird_machine}{\texttt{weird machine}}), lo stack diventa il "codice" per l'attaccante; non si può iniettare codice all'interno dello stack ma nella weird machine descritta:
+\begin{itemize}
+	\item \texttt{\%esp} diventa (una sorta di) program counter
+	\item i gadget sono invocati tramite una \texttt{ret} (si parte dalla prima, quella sovrascritta da un buffer overflow per esempio)
+	\item i gadget hanno parametri, passati tramite lo stack, quindi tramite pop, \dots 
+\end{itemize}
+
+Si ha una trasformazione della memoria del programma. L'idea è
+\begin{itemize}
+	\item prendere il codice che vogliamo eseguire
+	\item emulare l'assembly tramite i gadget
+\end{itemize}
+Concateno gadget trovati in memoria (pezzi di codice terminati da ret) per simulare il comportamento voluto. L'overflow del buffer termina sovrascrivendo l'indirizzo del primo gadget in memoria. \\
+
+%guarda slide
+Esempio: volendo simulare il codice
+\begin{itemize}[label*=]
+	\item \texttt{mov \%edx, 5}
+\end{itemize}
+Avendo come gadget
+\begin{itemize}[label*=, noitemsep]
+	\item \texttt{pop \%edx}
+	\item \texttt{ret}
+\end{itemize}
+E il valore 5 sullo stack, possiamo fare in modo che il valore puntato da \texttt{\%esp} sarà caricato in \texttt{\%edx} ed \texttt{\%esp} spostato sopra. Al termine di ogni gadget si ha il \texttt{ret}, fondamentale per concatenare i gadget. Cosa fa una \texttt{ret}? Prende il primo valore sullo stack (\texttt{pop} di cosa punta \texttt{\%esp}) e continua da lì (codice puntato) l'esecuzione del programma. Quindi se sullo stack è presente il codice del prossimo gadget, l'esecuzione proseguirà da lì.\\
+In altre parole: cambio l'indirizzo di ritorno con l'indirizzo del primo gadget, sullo stack ci sarà la chain di return address di gadget e parametri usati dagli stessi, ogni volta che ne viene eseguito uno (a partire dal primo), lo stack pointer scende e trova quello dopo.\\
+Esistono tool automatici per automatizzare la ricerca e unione dei gadget, chiamati ROP Compiler.
+
+\begin{center}
+	\begin{tabular}{| r c c l | r c c l |}
+		\hline
+		\multicolumn{4}{| c }{Sequenza di codice} & \multicolumn{4}{| c |}{Equivalente ROP} \\
+		\hline
+		\texttt{0x17f:} & \texttt{mov} & \texttt{\%eax,} & \texttt{[\%esp]} & \texttt{0x17f:} & \texttt{pop} & \texttt{\%eax} & \\
+		& \texttt{mov} & \texttt{\%ebx,}  & \texttt{[\%esp+8]} & & \texttt{ret} & & \\
+		& \texttt{mov} & \texttt{[\%ebx],} & \texttt{\%eax} & \texttt{\dots} &&& \\
+		&&&& \texttt{0x20f:} & \texttt{pop} & \texttt{\%ebx} & \\
+		&&&& & \texttt{ret} && \\
+		&&&& \texttt{\dots} &&& \\
+		&&&& \texttt{0x21a:} & \texttt{mov} & \texttt{[\%ebx],} & \texttt{\%eax} \\
+		\hline
+	\end{tabular}
+\end{center}
+
+\newpage
+
+Sostanzialmente, nello stack saranno presenti:
+\begin{itemize}
+	\item indirizzo del gadget
+	\item parametro/i del gadget
+	\item indirizzo del gadget
+	\item \dots
+\end{itemize} 
+%img? da inventare, circa
+Quindi devo sovrascrivere lo stack con un layout di questo tipo.
+
+\paragraph{Trovare i gadget:} I gadget per costruire un exploit possono essere trovati con una ricerca automatica del binario (cercando \texttt{ret} e andando a ritroso, \href{https://github.com/0vercl0k/rp}{\texttt{esempio di ROP gadget finder}}). \\
+
+Ma quanti gadget sono presenti? Ogni programma, in architettura Intel, può essere visto come $n$ rappresentazioni diverse: dato che è un'architettura CISC le operazioni possono avere diverse lunghezze, quindi saltare in mezzo ad un'istruzione porta ad una codifica diversa.  Esempio: se l'istruzione \texttt{a} ha opcode \texttt{0x0a0b} e l'istruzione \texttt{b} ha opcode più breve \texttt{0x0b}, "saltando" il primo byte dell'istruzione \texttt{a} ho effettivamente trovato un'istruzione \texttt{b}. In questo modo posso trovare \texttt{ret} o qualunque cosa in maniera più semplice. Diventa più difficile su architetture RISC (tutti i byte di istruzione sono allineati).\\
+
+I gadget sono sempre sufficienti per portare avanti un attacco? Sì, Shacham ha provato che per code base non triviali (e.g., libc), i gadget sono Turing completi.\\
+
+Un ROP Compiler prende in input:
+\begin{itemize}
+	\item codice che voglio eseguire ad alto livello
+	\item programma vittima
+\end{itemize}
+
+E restituisce in output l'injection vector, ovvero il layout dello stack per effettuare l'attacco (eseguire il codice input). Quindi prende il programma, definisce che gadget servono, li trova nel programma e crea il layout dello stack.
+
+\newpage
+
+\subsection{Blind ROP}
+
+Si tratta di un attacco pubblicato da stanford (\href{http://www.scs.stanford.edu/brop/}{\texttt{qui la pagina}}) che mostra come il ROP si possa applicare in condizioni reali. Il contesto è: 
+\begin{itemize}
+	\item remoto, si tratta di un server ngix
+	\item l'attaccante non ha il binario (programma eseguibile), nè il source code
+	\item ASLR, canary, DEP attivi
+	\item conoscenza di una vulnerabilità, da qualche parte
+\end{itemize}
+
+L'idea è: su un eseguibile PIE a 64 bit in esecuzione su un server, se in seguito ad un crash il server riparte ma non ri-randomizza i valori posso: 
+\begin{itemize}
+	\item leakare canary e return address dallo stack
+	\item trovare gadget (run-time) per leakare il binario
+	\item trovare i gadget per la shellcode
+\end{itemize}
+
+Lo scopo del programma è andare a leakare il binario, ovvero usare un gadget che va in memoria, prende il programma e lo restituisce all'attaccante.  Per fare questo bisogna far fare al server una write su una socket \texttt{sd}, con buffer e relativa lunghezza, dove 
+\begin{itemize}
+	\item il buffer sarà l'indirizzo del programma, sconosciuto per ASLR
+	\item la lunghezza sarà la dimensione dell'applicazione, approssimativamente nota
+\end{itemize}
+
+Dato che ad ogni connessione il server mantiene gli stessi valori (nuovo thread, stessi dati, fork), anche se poi il thread crasha, le fasi sono: 
+\begin{itemize}
+	\item leakare la canary
+	\item defeat the ASLR
+	\item trovare blind i gadget per fare una write
+	\item ottenere il binario
+\end{itemize}
+
+\paragraph{Leakare la canary:} Trovo la dimensione del buffer (tirando ad indovinare) e poi provo a sovrascrivere un byte della canary, provando tutti i valori finché non crasha per poi passare al byte successivo.\\
+
+\paragraph{Defeat the ASLR:} Provo ad indovinare il return address, similmente a come fatto per la canary, bisogna scoprire \textit{più o meno} dov'è il programma; una volta conosciuta la canary posso tirare ad indovinare finché non scopro uno degli indirizzi dov'è posizionato il programma.\\
+
+\paragraph{Blind search:} Dobbiamo trovare in modo blind i gadget che permettano di fare la write. Per una \texttt{write(sd, buffer, length)} le istruzioni che servono sono
+
+\begin{tabular}{c l}
+	\texttt{pop rdi} & \texttt{//sd} \\
+	\texttt{pop rsi} & \texttt{//buffer} \\
+	\texttt{pop rdx} & \texttt{//length} \\
+	\texttt{pop rax} & \texttt{//write syscall num} \\
+	\texttt{syscall} & \\
+\end{tabular}
+
+Quindi servono i gadget per fare
+
+\begin{tabular}{c c}
+	\texttt{pop rdi;} & \texttt{ret} \\
+	\texttt{pop rsi;} & \texttt{ret} \\
+	\texttt{pop rdx;} & \texttt{ret} \\
+	\texttt{pop rax;} & \texttt{ret} \\
+	\texttt{syscall} & \\
+\end{tabular}
+
+Il \texttt{sd} si può indovinare (8 bit, facile), ma devo trovare questi gadget senza avere il binario. Per indovinare il gadget posso sfruttare la differenza di comportamento tra \texttt{pop} ed altre istruzioni: \texttt{pop} sposta il \texttt{esp}. Dopo aver trovato la canary si tira ad indovinare, sovrascrivendo il return address, per trovare due gadget:
+\begin{itemize}
+	\item idle gadget: un indirizzo che mantiene aperta la socket
+	\item stop gadget: un indirizzo che fa crashare la socket
+\end{itemize}
+
+I gadget reali si trovano sfruttando questi due: sullo stack metto, in ordine, 
+\begin{enumerate}
+	\item indirizzo del gadget cercato
+	\item stop gadget
+	\item idle gadget. 
+\end{enumerate}
+
+Provando ad eseguire, il gadget cercato può essere:
+\begin{itemize}
+	\item un'istruzione normale (non \texttt{pop}): l'\texttt{esp} non viene spostato, il gadget eseguito dopo è lo stop e la socket crasha
+	\item una \texttt{pop}: viene spostato l'\texttt{esp}, lo stop gadget non viene eseguito, la socket rimane aperta
+\end{itemize}
+
+In questo modo posso mappare i gadget in memoria a run-time, so dove ci sono le \texttt{pop}. Per capire su che registro viene fatta la \texttt{pop}: non lo capisco, si provano a caso le \texttt{pop} trovate e quando torna indietro qualcosa dalla socket ho beccato la combinazione giusta (ha fatto la write).\\
+
+L'indirizzo per la write lo si trova tirando ad indovinare nella GOT.\\
+
+%End L7
