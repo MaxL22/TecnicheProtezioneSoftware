@@ -1,0 +1,46 @@
+% !TeX spellcheck = it_IT
+\section{Return Oriented Programming ROP}
+
+Voglio creare una catena di gadget per eseguire codice arbitrario. La sfida è capire cosa fare con i gadget a disposizione. In generale, nelle challenge, la catena va creata a partire da: 
+\begin{center}
+	\texttt{payload = b'A'*buf\_offset + gadget1 + param1 + gadget2 + param2 + \dots}
+\end{center}
+Fino ad avere tutti i gadget e parametri sullo stack.\\
+
+\paragraph{Trovare i gadget:} Esistono tool ropper, ropgadgets, \dots (cerca). Altrimenti si può fare a mano (you psycho).\\
+Esempio 
+\begin{center}
+	\texttt{ropper -f file}
+\end{center}
+Così li sputa tutti, per specificare quale gadget: \texttt{--search "pop rdi"}.\\
+
+Pwntools invece ha un modulo ROP
+\begin{center}
+	\texttt{rop = ROP(binario)}
+\end{center}
+e permette di trovare i gadget con (esempio come sopra):
+\begin{center}
+	\texttt{rop.rdi.address}
+\end{center}
+Potrebbe trovarne più di uno, in tal caso è da specificare quale usare.\\
+
+Pwntools permette anche di creare catene di rop: dopo aver caricato il modulo rop sopra, posso chiamare una funzione con dei parametri specifici:
+\begin{center}
+	\texttt{rop.win\_stage\_4(4)}
+\end{center}
+per passare il parametro \texttt{4} alla funzione \texttt{win\_stage\_4()}.\\
+
+Per vedere la catena creata
+\begin{center}
+	\texttt{rop.dump()}
+\end{center}
+Per mandarla 
+\begin{center}
+	\texttt{rop.chain()}
+\end{center}
+
+Se non ho una win da chiamare:
+\begin{itemize}
+	\item inietto una shellcode sullo stack: ma potrebbe essere non eseguibile
+	\item uso le syscall: potrei avere gadget per fare chiamate di sistema, ce ne sono per tutti i gusti
+\end{itemize}
