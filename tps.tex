@@ -16,11 +16,19 @@
 \definecolor{bg}{rgb}{0.95,0.95,0.95}
 \usepackage{minted}
 \setminted[c]{linenos, bgcolor=bg}
-\setminted[java]{linenos, bgcolor=bg}
+\setminted[java]{bgcolor=bg}
 \usepackage[hidelinks]{hyperref}
 \usepackage{tikz}
 \usepackage{enumitem}
 \usepackage{array}
+\usepackage{booktabs}
+\usepackage{adjustbox}
+
+%\includeonly{chapters/sme}
+%\includeonly{chapters/tme}
+%\includeonly{chapters/mts}
+%\includeonly{chapters/rop}
+%\includeonly{chapters/cfi}
 
 \begin{document}
 	\maketitle
@@ -34,6 +42,8 @@
 	\include{chapters/mts}
 
 	\include{chapters/rop}
+	
+	\include{chapters/cfi}
 
 
 \end{document}
