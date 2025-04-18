@@ -44,3 +44,19 @@ Se non ho una win da chiamare:
 	\item inietto una shellcode sullo stack: ma potrebbe essere non eseguibile
 	\item uso le syscall: potrei avere gadget per fare chiamate di sistema, ce ne sono per tutti i gusti
 \end{itemize}
+
+\subsection{Defeat Dynamic Linking}
+
+Il dynamic linking è una tecnica utilizzata per fare in modo di eseguire codice che non fa direttamente parte dell'eseguibile (es: tutte le funzioni di \texttt{libc}). Le librerie esterne vengono caricate runtime al posto di essere incorporate nel binario.\\
+
+Ogni libreria viene mappata in memoria con il proprio spazio di indirizzi (e relativi metodi di difesa attivi). Per ciascun simbolo (funzione) usato dall'eseguibile o da altre librerie, alla prima chiamata:
+\begin{itemize}
+	\item entra nella \textbf{PLT (Procedure Linkage Table)}, la quale conterrà uno stub che porta al resolver
+	\item il resolver riceve la richiesta e trova la funzione nella shared library corretta
+	\item l'indirizzo reale della funzione viene scritto nella \textbf{GOT (Global Offset Table)}
+\end{itemize}
+Per le chiamate successive, la GOT conterrà l'indirizzo definitivo, quindi l'indirizzo della PLT passa direttamente alla funzione senza passare dal resolver. La GOT è essenzialmente composta da un array di puntatori a funzioni.\\
+
+\paragraph{Leak libc:} La libc, quando dinamically linked, avrà sempre ASLR e tutte le altre protezioni attive, quindi dobbiamo scoprirne l'indirizzo a runtime. Per farlo vogliamo ottenere l'indirizzo reale di una delle funzioni di libc, ovvero stampare l'indirizzo di una qualsiasi funzione. Un modo semplice è fare \texttt{puts} di \texttt{puts@got} tramite \texttt{puts@plt}.\\
+
+Una volta noto l'indirizzo di una funzione e l'offset di tale funzione dall'inizio della libc si può calcolare la base.
