@@ -1,0 +1,66 @@
+	\begin{tikzpicture}[
+	level 1/.style={sibling distance=100mm},
+	level 2/.style={sibling distance=70mm},
+	level 3/.style={sibling distance=35mm},
+	level 4/.style={sibling distance=22mm},
+	]
+	\node {$x=0, y=0, z=0$}
+	child {
+		node {$\alpha$}
+		child { 
+			node {$x=-2$}
+			child {
+				node {$\beta < 5$}
+				child {
+					node {$z = 2$}
+					child {
+						node {\color{g}$\alpha \wedge (\beta < 5)$}
+					}
+					edge from parent 
+					node[left] {$t$}
+				}
+				child {
+					node {\color{g}$\alpha \wedge (\beta \geq 5)$}
+					edge from parent 
+					node[right] {$f$}
+				}
+			}
+			edge from parent 
+			node[left] {$t$}
+		}
+		child {
+			node {$\beta < 5$}
+			child{
+				node {$\neg \alpha \wedge \gamma$}
+				child{
+					node {$y=1$}
+					child {
+						node {$z=2$}
+						child {
+							node {\color{red} $\neg \alpha (\beta < 5) \wedge \gamma$}
+						}
+					}
+					edge from parent 
+					node[left] {$t$}
+				}
+				child {
+					node {$z=2$}
+					child{
+						node {\color{g} $\neg \alpha \wedge (\beta < 5) \wedge \neg \gamma$}
+					}
+					edge from parent 
+					node[right] {$f$}
+				}
+				edge from parent 
+				node[left] {$t$}
+			}
+			child {
+				node {\color{g} $\neg \alpha \wedge (\beta \geq 5)$}
+				edge from parent 
+				node[right] {$f$}
+			}
+			edge from parent 
+			node[right] {$f$}
+		}
+	};
+\end{tikzpicture}
