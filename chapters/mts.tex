@@ -26,6 +26,7 @@ Combina le idee di temporal safety (accedere solo a memoria attualmente allocata
 Ci permette di far valere la proprietà di sicurezza spaziale della memoria, ovvero andare a vedere che un puntatore non vada a puntare oltre una zona di memoria stabilita.\\
 
 \paragraph{Fat Pointers:} Un puntatore non è più "solo un puntatore", ma diventa una tripla $(p,b,e)$ dove: 
+\label{par:fat-pointers}
 \begin{itemize}
 	\item $p$ è il puntatore effettivo
 	\item $b$ è la base della zona di memoria a cui può accedere
