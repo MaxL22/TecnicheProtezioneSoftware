@@ -193,3 +193,107 @@ Terminata l'esecuzione di un percorso, si ottiene una path condition "completa",
 Si esplora un percorso alla volta tramite valori concreti. Permette di avere sempre dei valori concreti per ogni esecuzione e si possono anche seguire chiamate esterne al programma (perdendo symbolic-ness). Si possono gestire casi senza necessariamente far esplodere la complessità per il SMT solver.\\
 
 % End L9
+
+%L11 Here
+
+% Continuo Symbolic Execution
+In breve, la concolic execution parte da input simbolici concreti, alle variabili simboliche si associa un valore concreto in modo da ottenere un'esplorazione del programma secondo il valore scelto. Per ogni diramazione del programma viene salvato lo stato che ha portato ad una determinata scelta all'interno di una shadow memory; vengono salvate tutte le condizioni che vengono attraversate. Una volta arrivato alla fine del path (di una esecuzione) si può tornare indietro per determinare una condizione che permette di esplorare il path simmetrico (un altro path).\\
+
+\newpage
+
+\subsubsection{Search}
+
+Le principali problematiche legate all'utilizzo della symbolic execution sono:
+\begin{itemize}
+	\item come effettuare l'esplorazione all'interno del flusso di esecuzione di un programma?
+	\item risolvere molte formule logiche, anche di grande dimensione, quindi serve un SMT solver e sono rilevanti le performance
+\end{itemize}
+
+\paragraph{Path Explosion:} Solitamente la symbolic execution \textit{non può essere svolta in modo esaustivo}, il numero di esecuzioni è (solitamente) esponenziale nel numero di branch (ad esempio, per ogni \texttt{if} di controllo, se ci sono 3 variabili simboliche booleane si possono avere $2^3$ path possibili; ma anche per ogni loop, in quanto possono essere visti come una serie di condizioni).\\
+
+Comparandola all'\textbf{analisi statica}: quest'ultima permette di approssimare \textit{sempre} l'esecuzione di un programma, loop e condizioni possono essere approssimati come "always feasible"; questo semplifica l'analisi ma può portare a \textbf{falsi positivi}. \\
+
+Questo non è vero nella symbolic execution: va \textbf{sempre simulata l'esecuzione di un programma}, con la relativa risoluzione di formule logiche.\\
+
+Bisogna \textbf{definire} dei \textbf{metodi di esplorazione} del path di esecuzione in modo da \textbf{guidare l'esploratore simbolico}, in quanto non è possibile eseguire il programma esaustivamente, bisogna aggiungere delle euristiche per capire \textit{dove andare}. \\
+
+L'idea più semplice possibile è una BFS/DFS, con la relativa queue/stack per tenere traccia di cosa visitare; visito un grafo in maniera "banale". Questo però ha dei problemi: 
+\begin{itemize}
+	\item il principale è che non sono guidati da nessun tipo di informazione aggiuntiva, non viene cercato nulla di "particolare" all'interno del programma
+	\item la DFS potrebbe "bloccarsi in una zona del programma"
+	\item la BFS è marginalmente meglio, ma non è facilmente implementabile come concolic
+\end{itemize}
+
+\paragraph{Search strategies:} Dobbiamo fornire delle priorità per la ricerca, vogliamo andare verso path che \textit{probabilmente} contengono errori. Vogliamo modellare l'esecuzione del programma come un DAG (Directed Acyclic Graph) in cui i nodi sono gli stati del programma e gli archi indicano la possibile transizione da uno stato all'altro. Di conseguenza dobbiamo decidere \textit{che tipo di algoritmo per l'esplorazione del grafo}.\\
+
+Non è noto \textit{a priori} che path vanno presi, quindi una certa quantità di randomness può essere utile. Alcune idee:
+\begin{itemize}
+	\item scegliere il path da esplorare in modo uniformemente casuale
+	\item random restart se la ricerca non ha trovato nulla di interessante \textit{da un po'}
+	\item scegliere casualmente da path con la stessa priorità
+\end{itemize}
+
+Uno dei problemi con la randomness è la riproducibilità: vanno \textbf{mantenuti i valori dell'esecuzione}, altrimenti potrebbe non essere chiaro come un bug si è presentato; la comparsa dell'errore può essere legata ad una certa sequenza di stati precedenti, i.e., non è un singolo input che fa crashare il programma ma una sequenza; nel concreto vuol dire \textbf{tenere traccia dei path percorsi}, generalmente tramite il seed di  un generatore pseudo-random.\\
+
+\paragraph{Coverage-guided heuristic:} Tecnica di ricerca basata sul numero di volte in cui viene visitata una determinata istruzione. Il programma è composto da un determinato numero di istruzioni, aggiungo uno "score" per indicare quante volte è stata eseguita ogni istruzione. L'idea è che gli errori sono spesso in aree del programma difficili da raggiungere, quindi si punta a coprire la maggiore percentuale del programma possibile. Quando il punteggio è troppo alto si cercano input per zone ancora non esplorate.\\
+
+Per arrivare in una certa zona di memoria potrebbero servire determinate precondizioni, non sempre soddisfacibili, non è detto che l'esecuzione riesca sempre a visitare tutte le zone del programma.\\
+
+\paragraph{Generational search:} Ibrido tra BFS e coverage-guided
+\begin{itemize}
+	\item la prima generazione comincia con una esecuzione random completa
+	\item tutte quelle successive negano un branch dell'esecuzione ottenuta nella generazione precedente in modo da ottenere un nuovo percorso, con path prefix divers 
+\end{itemize}
+Vengono usate coverage heuristics per determinare delle priorità.\\
+
+\paragraph{Combined search:} Effettuare più ricerche allo stesso tempo, non esiste una soluzione one-size-fits-all, quindi potrebbe essere un'idea usare algoritmi di ricerca diversi (magari in maniera alternata) per raggiungere parti diverse del programma, sperando di avere una ricerca il più completa possibile.\\
+
+\subsubsection{SMT Solvers}
+
+Per esplorare nuovi path serve risolvere formule logiche, anche molto complesse, quindi le \textbf{performance degli SMT solver} sono fondamentali per effettuare symbolic execution.\\
+
+Da una parte si cerca di \textbf{semplificare le formule} (ad esempio con la concolic execution, inserire input concreti riduce le variabili della formula logica), ma dall'altro si cercano \textbf{ottimizzazioni per la risoluzione delle formule stesse}: i constraint solver usano tecniche per migliorare le performance come: tradurre strutture di memoria in formule logiche efficientemente, teoria degli array (mappare array a formule logiche), caching di richieste precedenti, rimuovere variabili ridondanti, \dots.\\
+
+Alcuni SMT solver:
+\begin{itemize}
+	\item \href{http://z3.codeplex.com/}{\texttt{Z3, da Microsoft research}}
+	\item \href{http://yices.csl.sri.com/}{\texttt{Yices, da SRI}}
+	\item \href{https://sites.google.com/site/stpfastprover/}{\texttt{STP, da Vijay Ganesh, now @ Waterloo}}
+	\item \href{http://www.cs.nyu.edu/acsys/cvc3/}{\texttt{CVC3, primariamente da NYU}}
+\end{itemize}
+
+\newpage
+
+\subsubsection{Symbolic Execution Systems}
+
+Dopo l'ideazione il primo revival della symbolic execution arriva con due sistemi:
+\begin{itemize}
+	\item \href{https://web.eecs.umich.edu/~weimerw/590/reading/p213-godefroid.pdf}{\texttt{DART: Godefroid and Sen, PLDI, 2005}}
+	\item \href{https://www.cs.umd.edu/class/fall2023/cmsc614/papers/exe.pdf}{\texttt{EXE: Cadar, Ganesh, Pawlowski, Dill, and Engler, CCS 2006}}
+\end{itemize}
+
+\paragraph{SAGE:} Concolic executor sviluppato da Microsoft Research, nato dal lavoro su DART, usa generational search e viene usato principalmente per trovare bug all'interno di file parser (probabilmente terminano, il comportamento è solo input/output, la concolic execution funziona bene). \\
+
+Viene usato in produzione da MS dal 2007, rappresenta il laboratorio di fuzzing più grande al mondo (più di 500 machine years), con più di 3.4 miliardi di constraint controllati (più grande uso di SMT solver di sempre) per trovare centinaia di bug in centinaia di applicazioni.\\
+
+\paragraph{KLEE:} Esegue simbolicamente bytecode LLVM (compila file a \texttt{.bc}, KLEE lavora su questi). Sviluppato a partire da EXE, lavora usando diverse strategie di ricerca, principalmente random path + converage guided. Simula l'ambiente per gestire system calls, accessi ai file, etc. Disponibile assieme a LLVM.\\
+
+\paragraph{Mayhem:} Sviluppato da CMU (Brumley et al), lavora su binari. Usa una ricerca BFS-style assieme a native execution; combina symbolic e concolic. Genera automaticamente report quando trova bug.\\
+
+\paragraph{Mergepoint:} Estende Mayhem con una tecnica chiamata \textit{veritesting}, combina symbolic execution con analisi statiac del codice:
+\begin{itemize}
+	\item l'analisi statica viene usata per blocchi di codice completi
+	\item la symbolic execution per zone più difficili da analizzare (e.g., con loop indefiniti, aritmetica dei puntatori, syscall)
+\end{itemize}
+Permette un miglior bilanciamento tra solver ed executor, risparmiando tempo e trovando bug più velocemente (copre più del programma nello stesso tempo). Usato per 11,687 bug in 4,379 applicazioni su distribuzione Linux (inclusi nuovi bug in codice altamente testato).\\
+
+\paragraph{Altri:} Alcuni altri esecutori simbolici: 
+\begin{itemize}
+	\item \textbf{Cloud9}: Parallel, multi-threaded symbolic execution; Extends KLEE (available)
+	\item \textbf{jCUTE, Java PathFinder}: symbolic execution for Java (available)
+	\item \textbf{Bitblaze}: Binary analysis framework (available)
+	\item \textbf{Otter}: directed symbolic execution for C (available); give the tool a line number, and it try to generate a test case to get there
+	\item \textbf{Pex}: symbolic execution for .NET
+\end{itemize}
+
+\paragraph{Alla fine:} La symbolic execution generalizza il semplice testing ed è usato i production code per mote applicazioni (SAGE per Microsoft, Mergepoint per Linux), ed esistono molti tool disponibili liberamente.\\
