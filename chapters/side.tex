@@ -1,0 +1,160 @@
+% !TeX spellcheck = it_IT
+\section{Meltdown and Spectre}
+
+Pubblicati nel 2017, si tratta di attacchi side channel, vanno a distruggere alcune delle assunzioni solitamente fatte sull'hardware; per quanto riguarda la sicurezza, solitamente vengono fatte assunzioni su alcune proprietà (come ad esempio isolation tra processi fatto dall'MMU, si presuppone sia presente), con questi attacchi alcuni componenti hardware non sono più considerabili trusted, rompendo il threat model solitamente considerato.
+
+Con questi attacchi è stato mostrato come l'hardware possa essere compromesso, \textit{senza particolari requisiti a livello software} (ovvero funzionano anche con un software bug free). Questi attacchi mostrano come, tramite un processo senza bug non privilegiato, si possa andare a leggere la memoria del kernel. Vengono sfruttate problematiche di progettazione hardware per andare a minare le solite assunzioni sulle componenti fisiche.
+
+Questi attacchi mettono in crisi \textit{tutta la progettazione hardware fino alla loro pubblicazione}, non sono mai stati tenuti in considerazione requisiti di sicurezza durante la progettazione, sono sempre state guardate prima le caratteristiche funzionali (performance). Non esistono soluzioni ottimali, a meno di ricostruire tutta l'architettura.
+
+Ci sono due principali componenti coinvolti in questi attacchi: 
+\begin{itemize}
+	\item CPU
+	\item Cache
+\end{itemize}
+
+Le cache possono essere viste come una matrice in cui
+\begin{itemize}
+	\item le linee si chiamano cache set
+	\item le colonne si chiamano cache line
+\end{itemize}
+
+%Magari spiega meglio
+Tramite una manipolazione dell'indirizzo virtuale si può andare a capire se un determinato dato è presente all'interno della cache (ogni indirizzo virtuale può far riferimento ad una sola linea all'interno della cache). L'indirizzo virtuale (dopo essere stato tradotto in fisico) viene usato per determinare la linea di cache in cui i dati verranno posti. 
+
+Quando un processore deve accedere ad un certo indirizzo, richiede certi dati, prima interroga la cache, solo dopo, se il dato non è stato trovato, viene interrogata la RAM (in seguito ai livelli di cache inferiori).
+
+In generale, in una CPU esistono più tipologie e livelli di cache 
+\begin{itemize}
+	\item ogni core ha una cache L1 e L2
+	\item divisa tra i core si ha una cache L3
+\end{itemize}
+Più le cache sono vicine al core, più sono veloci. Queste tipologie di attacchi lavorano principalmente su cache L3. 
+
+\paragraph{Micro-architecture attack:} Attacchi alla micro-architettura, sono attacchi che si posizionano nel layer tra software e hardware. 
+
+\paragraph{Side channel attacks:} Attacchi (studiati soprattutto in crittografia) che studiano l'ambiente di esecuzione di un processo/dispositivo; anche senza guardare fisicamente all'interno del dispositivo, si possono fare inferenze sul contenuto del dispositivo? Si tratta di inferenze a partire dall'ambiente circostante per dedurre il contenuto. 
+
+Esempio: considerando una smart card, l'unica interazione possibile con una smart card è inviare del testo in chiaro e ricevere del testo cifrato (si presuppone che esistano difese hardware contro l'aprire fisicamente la smart card e leggere). Si può guardare l'ambiente esterno alla smart card per capire la chiave, ad esempio, guardando quanta energia elettrica usa la smart card per cifrare il testo: guardando l'onda di esecuzione, ogni testo avrà un'onda differente e si sfrutta conoscenza sull'algoritmo di cifratura per ottenere informazioni sulla chiave usata; ad esempio, alcune ottimizzazioni in base al contenuto di testo e chiave usate dall'algoritmo potrebbero essere indizi. Magari non si può capire la chiave completa, ma capirne il 90\% per poter fare brute force sul resto è good enough.
+
+In generale, l'analisi dell'ambiente circostante ad un dispositivo permette di dedurre informazioni riguardo l'esecuzione.
+
+\newpage
+
+\subsection{Attacchi alle cache}
+
+Le cache si prestano a questa tipologia di attacchi in quanto condivise, ogni processo condivide la stessa cache. 
+
+Meltdown e Spectre non sono completamente hardware, ma richiedono interazione tra software e hardware (microarchitectural attack).
+
+\subsubsection{Flush \& Reload}
+
+Lo scenario di attacco è: una shared memory (ad esempio, una libreria in comune) e due processi software: un "attaccante" $P1$ e una "vittima" già in escuzione sulla macchina $P2$. 
+
+Si suppone che $P1$ conosca il codice di $P2$ (ad esempio, implementa un algoritmo noto), ma ovviamente non conosce lo stato di esecuzione del programma (ovvero valori usati all'interno del programma, presenti solo all'interno della memoria del processo $P2$). L'attaccante quindi vuole "spiare" lo stato di esecuzione di $P2$ sfruttando la memoria condivisa, supponendo siano due programmi indipendenti e bug-free.
+
+Il processo $P1$ fa: 
+\begin{itemize}
+	\item \textbf{flush}: operazione assembly fornita dall'architettura, permette di svuotare totalmente la cache
+\end{itemize}
+
+In seguito $P1$ rilascia l'esecuzione e fa andare in esecuzione $P2$, il quale caricherà i suoi valori/eseguirà il suo codice. Una volta eseguito del codice, ogni indirizzo virtuale relativo alle istruzioni eseguite da $P2$ farà riferimento ad una linea della cache, i.e., le istruzioni eseguite da quando la cache è stata svuotata saranno state caricate in cache.
+
+Quando $P1$ torna in esecuzione, in seguito a $P2$, farà
+\begin{itemize}
+	\item \textbf{reload}: carica (accede) ad ogni indirizzo virtuale presente all'interno del codice, per poi calcolare il tempo di accesso a ogni indirizzo (access time)
+\end{itemize}
+
+Dal punto di vista della cache, gli unici indirizzi al suo interno sono quelli eseguiti da $P2$:
+\begin{itemize}
+	\item se un indirizzo non è in cache andrà preso dalla memoria, più lento
+	\item se il valore è già in cache allora l'accesso sarà molto più veloce
+\end{itemize}
+
+Quando viene trovato un tempo di accesso più veloce ad una linea di cache, $P1$ può capire quali istruzioni ha eseguito il programma $P2$, ottenendo informazioni anche sullo stato e contenuto della memoria di $P2$. L'unica linea con accesso più veloce è la linea della libreria comune ai due processi già caricata in cache, ovvero le istruzioni appena usate dal secondo processo.
+
+Riassunto: 
+\begin{itemize}
+	\item $P1$ fa flush della cache
+	\item $P2$ va in esecuzione, carica in cache delle istruzioni
+	\item $P1$ tenta di accedere ad ogni indirizzo virtuale, quelli con tempo di accesso più breve rispetto agli altri sono le istruzioni eseguite da $P2$
+\end{itemize}
+Sapendo il mapping di $P2$ e il timing della cache posso inferire lo stato di esecuzione di $P2$.
+
+\subsubsection{Prime \& Probe}
+
+Si hanno lo stesso scenario e assunzioni di prima (so dove come viene mappata virtualmente la memoria di $P2$), ma non si ha una memoria shared in uso da entrambi i programmi.
+
+L'attacco consiste di:
+\begin{itemize}
+	\item $P1$ fa \textbf{prime} della cache: riempie completamente la cache (semplicemente accedendo a tutti gli indirizzi del suo spazio di indirizzamento che sappiamo essere mappati all'interno di $P2$)
+	\item va in esecuzione $P2$, eseguirà il suo blocco di codice, caricando $x$ e $y$ in cache
+	\item $P1$ fa timing sulla cache: prova tutte le linee, quelle eseguite da $P2$ avranno tempo più lento; tutti i dati sono in cache, il codice di $P1$ è diverso da $P2$, quando $P1$ riprova ad accedere a tutta la cache ci saranno delle linee più lente, in quanto richiedono lo scarico e carico della cache: quelle sono le linee virtuali usate da $P2$
+\end{itemize}
+
+Ancora una volta, misurando le differenze di timing, si può capire l'indirizzo virtuale utilizzato da un altro processo, sapendo il mapping virtuale di questo secondo processo si arriva alle istruzioni eseguite, portando ad inferenze sullo stato (utili o meno).
+
+Questi attacchi vengono portati su un unico core, "isolando" l'escuzione di programma target e attaccante, per evitare che ci sia "noise" a livello di cache dovuto all'esecuzione di altri processi (scheduling).
+
+\subsection{Speculative Execution}
+
+Meltdown e spectre usano vulnerabilità all'interno della CPU. Un'ottimizzazione (abbastanza spinta) della CPU è la \textbf{speculative execution} (presente all'interno di ogni CPU moderna). 
+
+Un programma è costituito di esecuzioni sequenziali: lento. L'esecuzione speculativa è "\textit{tentare di indovinare}" cosa dovrà fare la CPU nei passaggi successivi, vuole parallelizzare il più possibile l'esecuzione delle istruzioni (a livello di micro-operation, più in basso dell'assembly). 
+
+Il processore deve capire che istruzioni sono dipendenti tra loro, quali operazioni vanno eseguite in sequenza e quali invece possono essere parallelizzate.
+
+All'interno di una reservation station (shadow memory) la CPU memorizza le istruzioni da eseguire sequenzialmente. 
+
+Ma la "prossima istruzione" che sta tentando di eseguire in anticipo non è detto che andrà effettivamente eseguita (detta transient instruction, sta effettivamente speculando sull'esecuzione); potrebbe succedere qualcosa tra \textit{adesso} e quando dovrà davvero essere eseguita l'istruzione "speculata" che ne evita l'esecuzione (come ad esempio un \texttt{segfault}).
+
+I risultati dell'esecuzione speculativa sono tenuti all'interno di un buffer (ROB), non vengono scritti immediatamente nei registri/memoria dell'architettura finché l'esecuzione non risulta confermata. Tutta la speculazione non è visibile all'architettura finché l'esecuzione non è confermata.
+
+%mdsattacks.com/diagram.html
+
+La domanda che si sono posti meltdown e spectre è: \textit{posso usare questa cosa per fare leak di informazioni?} La risposta è \textit{sì}.
+
+\newpage
+
+\subsection{Meltdown}
+
+\href{https://meltdownattack.com/meltdown.pdf}{\texttt{Meltdown}} è una vulnerabilità che sfrutta:
+\begin{itemize}
+	\item speculative execution
+	\item cache attacks
+\end{itemize}
+
+Idea dietro il codice:
+\begin{minted}{c}
+data = kernel_access[I];
+access(probe_array[data*4096]);
+address = probe_array + data*4096;
+\end{minted}
+
+La prima istruzione è un \textbf{accesso ad un indirizzo del kernel}: siamo in un programma non privilegiato, quindi causerà un \texttt{segmentation fault}. Le istruzioni dopo sono "fattibili" (accessi ad un array definito all'interno del programma), non verranno mai eseguite, il programma si fermerà sempre prima, ma la speculative execution non lo sa e le vede come indipendenti tra loro. 
+
+Ognuna delle operazioni successive verrà divisa in microop ed eseguite in parallelo, il dato non viene faultato subito ma viene eseguito, anche se di nascosto (\textit{se} vince la race condition in cui la seconda istruzione finisce prima della prima all'interno del buffer, ma basta fare qualche tentativo nel peggiore dei casi).
+
+Le istruzioni che sono finite in shadow memory vengono \textbf{eseguite e poi bloccate}, l'architettura non le vede, ma finiscono comunque all'interno della \textbf{cache}. Sarà presente all'interno di una linea della cache il valore a cui è stato fatto l'accesso, ma che non doveva essere caricato.
+
+Tramite prime \& probe posso capire a quale linea kernel (privilegiata) è stato fatto l'accesso. \textit{Ma si può scoprirne il valore?} Per fare ciò entra in gioco la terza istruzione del listato: \texttt{probe\_array} è un valore noto (definito dall'attaccante), \texttt{4096} è la grandezza di una linea della cache (potrebbe essere diversa, esempio di valore) e \texttt{data} è il valore che vogliamo scoprire. In questo modo viene caricata in memoria una cache line diversa in base al valore del dato.
+
+Grazie al timing possiamo capire il valore: l'accesso è più veloce solamente alla linea $x$: il valore di \texttt{data}, caricato durante l'accesso out-of-order era $x$.
+
+\subsection{Spectre}
+
+\href{https://spectreattack.com/spectre.pdf}{\texttt{Spectre}} è una vulnerabilità che sfrutta:
+\begin{itemize}
+	\item speculative execution
+	\item cache attacks
+	\item branch prediction
+\end{itemize}
+
+La branch prediction unit è un componente all'interno delle CPU, fa parte (circa) dell'esecuzione speculativa, tenta di prevedere l'esito dei branch per fare speculazione; viene fatto anche in base all'esecuzione passata (e.g., se 99 volte su 100 è entrato nel loop, probabilmente entrerà di nuovo).
+
+Quindi, facendo un accesso ad un array, con un indice valido, 99 volte, e alla 100esima viene messo un indice out of bound, la branch prediction eseguirà lo stesso l'esecuzione, prima che il programma si accorga che l'accesso non è valido. Il valore caricato dalla branch prediction unit verrà caricato ancora una volta in cache.
+
+Similmente come per meltdown, un'istruzione che non doveva essere eseguita è stata anticipata, con effetto sulla cache, quindi ne si può capire il valore. 
+
+%End L12 
+%Fine corso :-(
