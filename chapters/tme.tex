@@ -1,41 +1,46 @@
 % !TeX spellcheck = it_IT
 \section{Temporal Memory Errors}
 
-Le vulnerabilità viste fin'ora si basavano su un "problema" nello spazio relativo alla memoria (overflow di qualcosa), invece, le vulnerabilità basate sul rompere la temporal memory si focalizzano su una sequenza di esecuzione in ordine temporale, la \textbf{vulnerabilità si presenta in un certo istante di esecuzione} del programma, ovvero in uno stato specifico in cui il programma si trova.\\ 
+Le vulnerabilità viste fin'ora si basavano su un "problema" nello spazio relativo alla memoria (overflow di \textit{qualcosa}), invece, le vulnerabilità basate sulla rottura della temporal memory si focalizzano su una sequenza di esecuzione in ordine temporale. 
 
-Sono difficili da individuare con una revisione manuale del codice dato che serve conoscere la sequenza esatta di allocazione e deallocazione durante l'esecuzione del programma, difficilmente individuabile su codice complesso.\\
+La \textbf{vulnerabilità si presenta in un certo istante di esecuzione} del programma, ovvero in uno stato specifico in cui il programma si trova.
+
+Sono difficili da individuare con una revisione manuale del codice dato che serve conoscere la sequenza esatta di allocazione e deallocazione durante l'esecuzione del programma, difficilmente individuabile su codice complesso.
 
 \subsection{Use After Free UAF}
-Una Use-After-Free accade quando si \textbf{usa un puntatore che è stato precedentemente liberato} (dereferenziazione di un puntatore che punta ad una zona di memoria liberata, dangling pointer).\\
+
+Una \textbf{Use-After-Free} accade quando si \textbf{usa un puntatore che è stato precedentemente liberato} (dereferenziazione di un puntatore che punta a una zona di memoria liberata, dangling pointer).
 
 Esempio: 
 \begin{minted}{c}
-char *a , *b; int i;
+char *a, *b; int i;
 
-a = malloc(16) ;
+a = malloc(16);
 b = a + 5;
-free(a) ;
+free(a);
 
-b[2] = 'c' ; /* use after free */
-b = retptr( ) ;
-*b = 'c' ; /* use after free */
+b[2] = 'c';   /* use after free */
+b = retptr();
+*b = 'c';     /* use after free */
 \end{minted}
 
-Conoscere l'insieme di puntatori che puntano ad un oggetto, senza una struttura dati come il garbage collector, non è un problema semplice (\textbf{aliasing} problem). Un analizzatore statico solitamente non riesce a trovare tutti gli aliasing, inoltre possono esserci puntatori definiti dinamicamente sulla base dell'oggetto. \\
+Conoscere l'insieme di puntatori che puntano a un oggetto, senza una struttura dati come il garbage collector, non è un problema semplice (\textbf{aliasing} problem). 
 
-\newpage
+Un analizzatore statico solitamente non riesce a trovare tutti gli aliasing, inoltre possono esserci puntatori definiti dinamicamente sulla base dell'oggetto.
 
-Per avere una UAF devo individuare: 
+Per avere una UAF bisogna individuare: 
 \begin{itemize}
 	\item una allocazione
-	\item una deallocazione
-	\item una dereferenziazione su un qualcosa di deallocato
+	
+    \item una deallocazione
+	
+    \item una dereferenziazione su un qualcosa di deallocato
 \end{itemize}
 
-Dopo averla individuata bisogna sfruttarla, tramite la funzione dell'allocatore che effettua la ricerca nelle liste di blocchi liberi un elemento della esatta grandezza richiesta, i.e., se la grandezza è giusta, riallocherà la zona allocata in precedenza.\\
+Dopo averla individuata bisogna sfruttarla, tramite la funzione dell'allocatore che effettua la ricerca nelle liste di blocchi liberi un elemento della esatta grandezza richiesta, i.e., se la grandezza è giusta, riallocherà la zona allocata in precedenza.
 
-Se c'è la possibilità, dopo la deallocazione, di eseguire una \texttt{malloc} di dimensione e valori controllati, il dangling pointer precedente punterà ai dati scritti dall'attaccante (quelli che sono rimasti nella zona deallocata e successivamente re-allocata). \\
+Se c'è la possibilità, dopo la deallocazione, di eseguire una \texttt{malloc()} di dimensione e valori controllati, il dangling pointer precedente punterà ai dati scritti dall'attaccante (quelli che sono rimasti nella zona deallocata e successivamente re-allocata). 
 
-La UAF è la vulnerabilità più frequente \textit{in natura}, più difficile da scovare e spesso permette di arrivare a esecuzione di codice arbitrario.\\
+La UAF è la vulnerabilità più frequente \textit{in natura}, più difficile da scovare e spesso permette di arrivare a esecuzione di codice arbitrario.
 
 % End l4

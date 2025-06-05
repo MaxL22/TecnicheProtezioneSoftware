@@ -1,8 +1,8 @@
 % !TeX spellcheck = it_IT
-
 \section{Control Flow Integrity CFI}
+\label{sec:cfi}
 
-Si tratta di una tecnica di protezione basata su un'idea diversa dalle altre difese descritte precedentemente, le quali "complicavano" l'attacco prevenendone le fasi. Qua il paradigma di difesa è diverso, si vuole una cosa più generale, l'idea è \textbf{definire un modello di comportamento del programma} e se l'esecuzione esce da questo modello viene segnalata un'anomalia.\\
+Si tratta di una tecnica di protezione basata su un'idea diversa dalle altre difese descritte precedentemente, le quali "complicavano" l'attacco prevenendone le fasi. Qua il paradigma di difesa è diverso, si vuole una cosa più generale, l'idea è \textbf{definire un modello di comportamento del programma} e se l'esecuzione esce da questo modello viene segnalata un'anomalia.
 
 Le "sfide" di questa idea sono: 
 \begin{itemize}
@@ -11,11 +11,11 @@ Le "sfide" di questa idea sono:
 	\item evitare possibili compromissioni del detector/monitor che controlla il programma
 \end{itemize}
 
-\paragraph{Definire expected behavior:} Come si può \textbf{caratterizzare il comportamento di un programma} durante l'esecuzione? Una caratteristica fondamentale di tutti i programmi è il control flow, rappresentabile tramite \textbf{Control Flow Graph CFG}, in cui ogni nodo è una chiamata a funzione (insiemi di istruzioni) e gli archi sono i passaggi di stato del programma. Il CFG rappresenta il flusso del programma in termini di insiemi di istruzioni e transizioni tra di essi. \\
+\paragraph{Definire expected behavior:} Come si può \textbf{caratterizzare il comportamento di un programma} durante l'esecuzione? Una caratteristica fondamentale di tutti i programmi è il control flow, rappresentabile tramite \textbf{Control Flow Graph CFG}, in cui ogni nodo è una chiamata a funzione (insiemi di istruzioni) e gli archi sono i passaggi di stato del programma. Il CFG rappresenta il flusso del programma in termini di insiemi di istruzioni e transizioni tra di essi. 
 
-Se durante l'esecuzione effettiva il comportamento non rispetta le transizione definite: anomalia.\\
+Se durante l'esecuzione effettiva il comportamento non rispetta le transizione definite: anomalia.
 
-\paragraph{Rilevare deviazioni efficientemente:} Il controllo deve essere rapido, quindi il monitor deve essere efficiente. Non può essere esterno perché diventerebbe troppo invasivo. Il controllo viene quindi inserito all'interno del programma: \textbf{In-line reference monitor IRM}, ci sono istruzioni di controllo inserite all'interno del programma stesso. \\
+\paragraph{Rilevare deviazioni efficientemente:} Il controllo deve essere rapido, quindi il monitor deve essere efficiente. Non può essere esterno perché diventerebbe troppo invasivo. Il controllo viene quindi inserito all'interno del programma: \textbf{In-line reference monitor IRM}, ci sono istruzioni di controllo inserite all'interno del programma stesso. 
 
 I controlli vanno fatti rispetto ad un \textbf{threat model} ben definito: si suppone quali siano le possibili azioni che l'attaccante può o non può compiere e i controlli vengono inseriti di conseguenza. Ad esempio: presuppongo che l'attaccante 
 \begin{itemize}
@@ -23,15 +23,15 @@ I controlli vanno fatti rispetto ad un \textbf{threat model} ben definito: si su
 	\item non può disabilitare il IRM, non può modificare il codice in memoria (DEP)
 \end{itemize}
 
-Va sempre definito un threat model con ciò che è e non è lecito fare da parte dell'attaccante. Se l'attaccante riesce a rompere questi presupposti il sistema di difesa viene effettivamente superato (ad esempio, disabilita il IRM saltando i check).\\
+Va sempre definito un threat model con ciò che è e non è lecito fare da parte dell'attaccante. Se l'attaccante riesce a rompere questi presupposti il sistema di difesa viene effettivamente superato (ad esempio, disabilita il IRM saltando i check).
 
-\paragraph{Evitare compromissione del detector:} Per evitare che il IRM venga disabilitato sicuramente serve che il codice sia immutabile e che sia presente una sufficiente randomness all'intero dei controlli stessi. L'in-line monitor deve essere protetto da immutabilità e randomness.\\
+\paragraph{Evitare compromissione del detector:} Per evitare che il IRM venga disabilitato sicuramente serve che il codice sia immutabile e che sia presente una sufficiente randomness all'intero dei controlli stessi. L'in-line monitor deve essere protetto da immutabilità e randomness.
 
-In termini di \textbf{efficienza}: il \textbf{Classic CFI} (2005 di Microsoft Research) portava un overhead medio del 16\%, con 45\% nel caso peggiore; funzionava solo su eseguibile, non sulle librerie. Nel 2014 si è raggiunto il \href{https://www.cse.psu.edu/~gxt29/papers/mcfi.pdf}{\textbf{\texttt{Modular CFI}}} (\href{https://www.cse.psu.edu/~gxt29/}{\texttt{pagina autore}}), un modello di CFI modulare con un overhead molto più basso (5\% in media, 12\% worst case), il quale è in grado di lavorare anche su librerie.\\
+In termini di \textbf{efficienza}: il \textbf{Classic CFI} (2005 di Microsoft Research) portava un overhead medio del 16\%, con 45\% nel caso peggiore; funzionava solo su eseguibile, non sulle librerie. Nel 2014 si è raggiunto il \href{https://www.cse.psu.edu/~gxt29/papers/mcfi.pdf}{\textbf{\texttt{Modular CFI}}} (\href{https://www.cse.psu.edu/~gxt29/}{\texttt{pagina autore}}), un modello di CFI modulare con un overhead molto più basso (5\% in media, 12\% worst case), il quale è in grado di lavorare anche su librerie.
 
-\paragraph{Sicurezza:} MCFI permette di ridurre del 95.75\% i gadget ROP; definendo punti di entrata ed uscita dell'esecuzione non si può portare avanti un attacco ROP, il quale, per definizione, modifica il flusso del programma; MCFI blocca i salti illeciti. \\
+\paragraph{Sicurezza:} MCFI permette di ridurre del 95.75\% i gadget ROP; definendo punti di entrata ed uscita dell'esecuzione non si può portare avanti un attacco ROP, il quale, per definizione, modifica il flusso del programma; MCFI blocca i salti illeciti. 
 
-La percentuale di riduzione viene dal fatto che i gadget non possono essere utilizzati in quanto non parte del flusso di controllo originale. Viene significativamente ridotta la superficie di attacco, si posso on usare solo i gadget presenti all'interno del flusso di esecuzione (pochi).\\
+La percentuale di riduzione viene dal fatto che i gadget non possono essere utilizzati in quanto non parte del flusso di controllo originale. Viene significativamente ridotta la superficie di attacco, si posso on usare solo i gadget presenti all'interno del flusso di esecuzione (pochi).
 
 Un'altra metrica usata è l'\textbf{Average Indirect-target Reduction (AIR)}, ovvero la percentuale di riduzione di possibili bersagli di salti indiretti che un attacco potrebbe sfruttare (punti di controllo del control flow). Le istruzioni di salto possono essere categorizzate in 
 \begin{itemize}
@@ -39,7 +39,7 @@ Un'altra metrica usata è l'\textbf{Average Indirect-target Reduction (AIR)}, ov
 	\item \textbf{indirect calls}: tutte le operazioni in cui l'indirizzo finale del salto va calcolato a runtime
 \end{itemize}
 
-In sostanza, la percentuale di bersagli per salti indiretti che vengono eliminati dalla CFI, ovvero quasi tutti.\\
+In sostanza, la percentuale di bersagli per salti indiretti che vengono eliminati dalla CFI, ovvero quasi tutti.
 
 \subsection{Costruzione del Control Flow}
 
@@ -49,7 +49,7 @@ La costruzione del control flow di un programma è divisa in due fasi:
 	\item analisi dinamica
 \end{itemize}
 
-\paragraph{Analisi statica:} Il compiler costruisce il grafo del control flow (già presente, viene usato per ottimizzazione, "strumenta" il programma). \\
+\paragraph{Analisi statica:} Il compiler costruisce il grafo del control flow (già presente, viene usato per ottimizzazione, "strumenta" il programma). 
 
 Il primo passo dell'analisi statica è il \textbf{call graph}, ovvero il grafo che rappresenta le chiamate a funzione, quale funzione chiama cosa. Esempio: 
 
@@ -79,14 +79,14 @@ bool gt(int x, int y) {
 	\includegraphics[width=0.8\linewidth]{img/cfi/call1}
 \end{center}
 
-Permette di rappresentare il \textbf{flusso di chiamate} all'interno del control flow, ma si tratta di un modello piuttosto permissivo: rappresenta le chiamate ma non il flusso reale delle funzioni. \\
+Permette di rappresentare il \textbf{flusso di chiamate} all'interno del control flow, ma si tratta di un modello piuttosto permissivo: rappresenta le chiamate ma non il flusso reale delle funzioni. 
 
 Idealmente vorremmo un modello più restrittivo, ovvero il CFG; si introducono i \textbf{basic blocks}: dei contenitori di istruzioni sequenziali terminate da un'istruzione di salto, di qualsiasi tipo (\texttt{jmp}, \texttt{ret}, \texttt{\dots}). Permette di distinguere \texttt{call} dai \texttt{return}, il grafo sul codice di prima diventa:
 \begin{center}
 	\includegraphics[width=0.8\linewidth]{img/cfi/call2}
 \end{center}
 
-Ogni funzione viene "spezzata" in moduli, ognuna delle quali ha una call/return, definendo meglio il modello di esecuzione del programma. Ogni basic block fa una call o una return (praticamente un gadget). \\
+Ogni funzione viene "spezzata" in moduli, ognuna delle quali ha una call/return, definendo meglio il modello di esecuzione del programma. Ogni basic block fa una call o una return (praticamente un gadget). 
 
 In sostanza: 
 \begin{itemize}
@@ -94,8 +94,6 @@ In sostanza:
 	\item il control flow del programma viene monitorato dall'interno, assicurando che segua percorsi definiti dal CFG
 	\item le direct calls non vanno monitorate (assumendo che il codice sia immutabile, l'indirizzo target non può essere cambiato), quindi \textbf{solo le indirect calls vanno controllate} (\texttt{jmp}, \texttt{call}, \texttt{ret} con target non costanti, tutti i salti parametrici)
 \end{itemize}
-
-\newpage
 
 \subsection{In-Line Monitor}
 
@@ -152,9 +150,7 @@ Diventa:
 	\end{adjustbox}
 \end{table}
 
-Viene inserita una label per ogni basic block, quando c'è un indirect call il programma controlla che la destinazione abbia la label corretta (o una delle label corrette) prima di saltare. Controlla che il salto sia alla destinazione corretta.\\
-
-\newpage
+Viene inserita una label per ogni basic block, quando c'è un indirect call il programma controlla che la destinazione abbia la label corretta (o una delle label corrette) prima di saltare. Controlla che il salto sia alla destinazione corretta.
 
 \paragraph{Tipi di labeling:} Il \textbf{labeling} può essere: 
 \begin{itemize}
