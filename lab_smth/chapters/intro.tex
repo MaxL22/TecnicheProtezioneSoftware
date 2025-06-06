@@ -2,29 +2,31 @@
 
 \section{Introduzione}
 
-\paragraph{Debugger:} Permette di analizzare un programma riga per riga, impostando break point ed analizzando la memoria durante l'esecuzione.\\
+\paragraph{Debugger:} Permette di analizzare un programma riga per riga, impostando break point ed analizzando la memoria durante l'esecuzione.
 
 Alcuni comandi: 
 \begin{itemize}
 	\item \texttt{run r}: esegue il programma
+
 	\item \texttt{step}: istruzione successiva (entrando nelle funzioni)
+
 	\item \texttt{next}: istruzione successiva, ma le funzioni sono trattate come istruzione singola 
+
 	\item \texttt{info registers}: per vedere stato dei registri
+
 	\item \texttt{x/nfu}: per esaminare la memoria, dove \texttt{n} è il numero di unità da stampare, \texttt{f} il formato, \texttt{u} il tipo di unità
+
 	\item \texttt{b addr}: imposta un breakpoint all'indirizzo \texttt{addr}, dove l'indirizzo può essere relativo, ad esempio \texttt{*foo+123} mette un breakpoint all'indirizzo \texttt{+123} della funzione \texttt{foo}
+
 	\item \texttt{disassemble foo}: mostra le istruzioni della funzione \texttt{foo}
+
 	\item \texttt{set what=val}: setta \texttt{what} al valore \texttt{val}
 \end{itemize}
 
-\paragraph{Ghidra:} Decompiler prende l'output di un disassembler e cerca di ricostruire istruzioni di più alto livello in base a pattern noti. Dall'assembly cerca di ricostruire un codice leggibile (forse).\\
+\paragraph{Ghidra:} Decompiler, prende l'output di un disassembler e cerca di ricostruire istruzioni di più alto livello in base a pattern noti. Dall'assembly cerca di ricostruire un codice (forse) leggibile.
 
 \paragraph{Calling convention 64 bit:} Su architettura 64 bit, quando viene chiamata una funzione i valori vengono caricati all'interno dei registri, nell'ordine
 \begin{center}
 	\texttt{rdi, rsi, rdx, rcx, r8, r9}
 \end{center}
-Se ne sono presenti di più allora vengono caricati sullo stack.\\
-
-%Es 4: sono messi valori random all'interno dello stack, devo fare in modo che i valori che inserisco siano uguali a quelli all'interno dello stack
-%Trovare i valori, come vengono messi e fare in modo che siano uguali
-%Raggiungere la funzione win alla fine, dobbiamo capire il flusso di esecuzione da seguire per raggiungere la funzione
-%Che istruzioni cambiano il flusso di esecuzione? cmp e jump.
+Se ne sono presenti di più allora vengono caricati sullo stack.

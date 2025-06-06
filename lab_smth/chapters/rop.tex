@@ -1,62 +1,71 @@
 % !TeX spellcheck = it_IT
 \section{Return Oriented Programming ROP}
 
-Voglio creare una catena di gadget per eseguire codice arbitrario. La sfida è capire cosa fare con i gadget a disposizione. In generale, nelle challenge, la catena va creata a partire da: 
+Voglio creare una catena di gadget per eseguire codice arbitrario. La sfida è capire \textit{cosa fare} con i gadget a disposizione. In generale, nelle challenge, la catena va creata a partire da: 
 \begin{center}
 	\texttt{payload = b'A'*buf\_offset + gadget1 + param1 + gadget2 + param2 + \dots}
 \end{center}
-Fino ad avere tutti i gadget e parametri sullo stack.\\
 
-\paragraph{Trovare i gadget:} Esistono tool ropper, ropgadgets, \dots (cerca). Altrimenti si può fare a mano (you psycho).\\
+Fino ad avere tutti i gadget e parametri sullo stack.
+
+\paragraph{Trovare i gadget:} Esistono tool come ropper, ropgadgets, \dots (cerca). Altrimenti si può fare a mano (psycho behaviour).
+
 Esempio 
 \begin{center}
 	\texttt{ropper -f file}
 \end{center}
-Così li sputa tutti, per specificare quale gadget: \texttt{--search "pop rdi"}.\\
+Così li sputa tutti, per specificare quale gadget: \texttt{--search "pop rdi"}.
 
-Pwntools invece ha un modulo ROP
+Pwntools contiene un modulo ROP
 \begin{center}
 	\texttt{rop = ROP(binario)}
 \end{center}
+
 e permette di trovare i gadget con (esempio come sopra):
 \begin{center}
 	\texttt{rop.rdi.address}
 \end{center}
-Potrebbe trovarne più di uno, in tal caso è da specificare quale usare.\\
+Potrebbe trovarne più di uno, in tal caso è da specificare quale usare.
 
 Pwntools permette anche di creare catene di rop: dopo aver caricato il modulo rop sopra, posso chiamare una funzione con dei parametri specifici:
 \begin{center}
 	\texttt{rop.win\_stage\_4(4)}
 \end{center}
-per passare il parametro \texttt{4} alla funzione \texttt{win\_stage\_4()}.\\
+
+per passare il parametro \texttt{4} alla funzione \texttt{win\_stage\_4()}.
 
 Per vedere la catena creata
 \begin{center}
 	\texttt{rop.dump()}
 \end{center}
+
 Per mandarla 
 \begin{center}
 	\texttt{rop.chain()}
 \end{center}
 
-Se non ho una win da chiamare:
+Se non ho una \texttt{win()} da chiamare:
 \begin{itemize}
 	\item inietto una shellcode sullo stack: ma potrebbe essere non eseguibile
+
 	\item uso le syscall: potrei avere gadget per fare chiamate di sistema, ce ne sono per tutti i gusti
 \end{itemize}
 
 \subsection{Defeat Dynamic Linking}
 
-Il dynamic linking è una tecnica utilizzata per fare in modo di eseguire codice che non fa direttamente parte dell'eseguibile (es: tutte le funzioni di \texttt{libc}). Le librerie esterne vengono caricate runtime al posto di essere incorporate nel binario.\\
+Il dynamic linking è una tecnica utilizzata per permettere di eseguire codice che non fa direttamente parte dell'eseguibile (es: tutte le funzioni di \texttt{libc}). Le librerie esterne vengono caricate runtime al posto di essere incorporate nel binario.
 
 Ogni libreria viene mappata in memoria con il proprio spazio di indirizzi (e relativi metodi di difesa attivi). Per ciascun simbolo (funzione) usato dall'eseguibile o da altre librerie, alla prima chiamata:
 \begin{itemize}
 	\item entra nella \textbf{PLT (Procedure Linkage Table)}, la quale conterrà uno stub che porta al resolver
-	\item il resolver riceve la richiesta e trova la funzione nella shared library corretta
-	\item l'indirizzo reale della funzione viene scritto nella \textbf{GOT (Global Offset Table)}
+	
+    \item il resolver riceve la richiesta e trova la funzione nella shared library corretta
+	
+    \item l'indirizzo reale della funzione viene scritto nella \textbf{GOT (Global Offset Table)}
 \end{itemize}
-Per le chiamate successive, la GOT conterrà l'indirizzo definitivo, quindi l'indirizzo della PLT passa direttamente alla funzione senza passare dal resolver. La GOT è essenzialmente composta da un array di puntatori a funzioni.\\
 
-\paragraph{Leak libc:} La libc, quando dinamically linked, avrà sempre ASLR e tutte le altre protezioni attive, quindi dobbiamo scoprirne l'indirizzo a runtime. Per farlo vogliamo ottenere l'indirizzo reale di una delle funzioni di libc, ovvero stampare l'indirizzo di una qualsiasi funzione. Un modo semplice è fare \texttt{puts} di \texttt{puts@got} tramite \texttt{puts@plt}.\\
+Per le chiamate successive, la GOT conterrà l'indirizzo definitivo, quindi l'indirizzo della PLT passa direttamente alla funzione senza passare dal resolver. La GOT è essenzialmente composta da un array di puntatori a funzioni.
+
+\paragraph{Leak libc:} La libc, quando dinamically linked, avrà sempre ASLR e tutte le altre protezioni attive, quindi dobbiamo scoprirne l'indirizzo a runtime. Per farlo vogliamo ottenere l'indirizzo reale di una delle funzioni di libc, ovvero stampare l'indirizzo di una qualsiasi funzione. Un modo semplice è fare \texttt{puts} di \texttt{puts@got} tramite \texttt{puts@plt}.
 
 Una volta noto l'indirizzo di una funzione e l'offset di tale funzione dall'inizio della libc si può calcolare la base.

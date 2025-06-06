@@ -2,47 +2,51 @@
 
 \section{Buffer Overflow}
 
-Per gli esercizi di pwncollege, in generale abbiamo a disposizione un buffer e dobbiamo far eseguire una funzione \texttt{win()}, in qualche modo (dipende dall'esercizio, ma generalmente sovrascrivendo l'indirizzo di ritorno della funzione \texttt{challenge()} con l'indirizzo di \texttt{win()}), al fine di ottenere una flag.\\
-
+Per gli esercizi di pwncollege, in generale si ha a disposizione un buffer e bisogna far eseguire una funzione \texttt{win()}, in qualche modo (dipende dall'esercizio, ma generalmente sovrascrivendo l'indirizzo di ritorno della funzione \texttt{challenge()} con l'indirizzo di \texttt{win()}), al fine di ottenere una flag.
 
 Per capire la dimensione del buffer: 
 \begin{itemize}
-	\item Ghidra: la notazione di ghidra fa riferimento all'inizio dello stack, se il buffer è chiamato \texttt{local\_a8}, l'inizio dello stack (e di conseguenza l'inizio dell'indirizzo di ritorno della funzione) si trova \texttt{0xa8} bit prima del buffer (i.e., devo sovrascrivere 168 byte, 160 di buffer e cose varie poi 8 di indirizzo di ritorno)
-	%TODO find out bitch
+	\item Ghidra: la notazione di ghidra fa riferimento all'inizio dello stack, se il buffer è chiamato \texttt{local\_a8}, l'inizio dello stack (e di conseguenza il punto subito dopo l'indirizzo di ritorno della funzione) si trova \texttt{0xa8} bit prima del buffer (i.e., devo sovrascrivere 176 byte, 168 di buffer e cose varie poi 8 di indirizzo di ritorno)
+    
 	\item gdb: guardo l'indirizzo del buffer, cercando dove viene popolato rispetto al RBP (poi ci sono 8 byte di Saved Frame Pointer SFP, poi il return address). Non so come si faccia tbh, dovrei scoprirlo.
-	\item Stringhe cicliche: scrivo $n$ indirizzi di memoria diversi (valori casuali) e guardo il core dump: lo stato dei registri mostra il valore dell'instruction pointer, ovvero quale dei $n$ diversi indirizzi ha fatto crashare il programma, se è il $10^o$ indirizzo allora la distanza è $10 \cdot 8$, potremmo farlo a mano, oppure usare pwntools:
-	\begin{itemize}[label*=]
-		\item \texttt{elf = ELF('')} per definire l'eseguibile
-		\item \texttt{io = elf.process(setuid=False)} per dire di non usare il \texttt{suid} (altrimenti il programma non fornisce il core dump)
-		\item \texttt{io.sendline(cyclic(512, n=8))} genera la stringa ciclica, 512 byte in blocchi 8
-		\item \texttt{io.wait()} aspetta il crash
-		\item \texttt{print(cyclic\_find(io.corefile.fault\_addr, n=8))}: dall'indirizzo da cui è crashato il programma estrapola la distanza dall'inizio dello stack, usando indirizzi da 8 byte
-	\end{itemize}
+	
+    \item Stringhe cicliche: scrivo $n$ indirizzi di memoria diversi (valori casuali) e guardo il core dump: lo stato dei registri mostra il valore dell'instruction pointer, ovvero quale dei $n$ diversi indirizzi ha fatto crashare il programma, se è il $10^o$ indirizzo allora la distanza è $10 \cdot 8$, potremmo farlo a mano, oppure usare pwntools
 \end{itemize}
-Quest'ultimo  meccanismo non funziona con canary o stack protection. Checksec sul binario (da pwntools) restituisce le protezioni sull'eseguibile. \\
 
-%Per capire quanto devo scrivere: 
-%* il secondo parametro della read è l'indirizzo dove verrà scritto il buffer
-%* vado a ritroso per capire quando viene popolato l'indirizzo
-%* magic I guess
-%* trovo la distanza tra buffer e inizio dello stack, da aggiungere gli 8 byte di SFP
+\begin{minted}{python}
+# Per definire l'eseguibile
+elf = ELF(path) 
+# Con suid attivo non fornisce core dump
+io = elf.process(setuid=False)
+# Genera stringa ciclica, 512 byte in blocchi da 8 
+io.sendline(cyclic(512, 8)) 
+# Aspetta il crash
+io.wait() 
+# Estrapola l'offset da inizio stack, 
+#    in base all'indirizzo da cui è crashato il programma,
+#    con indirizzi da 8 byte
+print(cyclic_find(io.corefile.fault_addr, n=8))
+\end{minted}
+
+Quest'ultimo  meccanismo non funziona con canary o stack protection. Checksec sul binario (da pwntools) restituisce le protezioni sull'eseguibile. 
 
 Se all'interno della funzione \texttt{win()} c'è il check di un parametro all'inizio della funzione, posso:
 \begin{itemize}
 	\item usare dei "gadget" (to be continued)
-	\item andare ad un istruzione dopo il controllo, al posto dell'indirizzo iniziale della funzione \texttt{win()} scrivo l'indirizzo di una istruzione all'interno della funzione dopo il check
+	
+    \item andare ad un istruzione dopo il controllo, al posto dell'indirizzo iniziale della funzione \texttt{win()} scrivo l'indirizzo di una istruzione all'interno della funzione, ma dopo il check
 \end{itemize}
-
-%Ma cosa stai dicendo
-%* metto un break alla fine della funzione challenge, all'istruzione dopo il base pointer tornerà a puntare al vecchio stack frame, la ret popperà dallo stack il valore dell'indirizzo di ritorno sul RIP. Nel momento in cui deve eseguire la ret, su RSP ci sarà l'indirizzo del valore dell'indirizzo di ritorno, da sottrarre all'indirizzo dell'inizio del buffer da scrivere, in modo da trovare l'offset
 
 \subsection{Randomizzazione degli indirizzi ASLR}
 
-Generalmente attivo di default, l'ASLR randomizza la posizione in memoria del programma, di conseguenza rendendo casuali return address e indirizzo del buffer. Ci possono essere diverse implementazioni, con le relative difficoltà, ma in generale è implementato a livello \textbf{kernel}: ogni volta che un programma viene lanciato gli viene assegnata una pagina diversa; gli indirizzi vengono calcolati a runtime tramite offset.\\
+Generalmente attivo di default, l'ASLR \textbf{randomizza la posizione del programma in memoria}, di conseguenza rendendo casuali return address e indirizzo del buffer. 
 
-Rimane noto l'offset all'interno del programma, ovvero le ultime 3 cifre in esadecimale dell'indirizzo (12 bit, le pagine sono allineate a \texttt{0x1000}). Quindi posso sfruttare questa cosa sovrascrivendo solo gli ultimi 2 byte dell'indirizzo di ritorno e presupponendo che la funzione che vogliamo eseguire non sia "troppo lontana" dal resto. In questo modo sarà casuale solo l'ultima cifra in esadecimale dovuta al paging, ma mi basta ripetere l'esecuzione "qualche volta" (probabilità $1/16$) per indovinare anche l'ultimo carattere.\\
+Ci possono essere diverse implementazioni, con le relative difficoltà, ma in generale è implementato a livello \textbf{kernel}: ogni volta che un programma viene lanciato gli viene assegnata una pagina diversa; gli indirizzi vengono calcolati a runtime tramite offset.
 
+Rimane noto l'offset all'interno del programma, ovvero le ultime 3 cifre in esadecimale dell'indirizzo (12 bit, le pagine sono allineate a \texttt{0x1000}). Si può sfruttare questa cosa sovrascrivendo solo gli ultimi 2 byte dell'indirizzo di ritorno e presupponendo che la funzione da eseguire non sia "troppo lontana" dal resto. In questo modo sarà casuale solo l'ultima cifra in esadecimale dovuta al paging, basta ripetere l'esecuzione "qualche volta" (probabilità $1/16$) per indovinare anche l'ultimo carattere.
 
 \subsection{Canary}
 
-Se presente una canary, dobbiamo leakarla per poi sovrascriverla. Generalmente gli esercizi hanno un \texttt{\%s} e una "backdoor" che fa ripartire la challenge. Facendo overflow del buffer fino alla canary (+1 byte per sovrascrivere il primo \texttt{0x00} della canary, sempre presente) e non inserendo un terminatore di stringa il \texttt{\%s} stamperà il valore della canary, inseribile all'esecuzione successiva della challenge.\\
+Se presente una canary, dobbiamo leakarla per poi sovrascriverla. Generalmente gli esercizi hanno un \texttt{\%s} e una "backdoor" che fa ripartire la challenge. 
+
+Facendo overflow del buffer fino alla canary (+1 byte per sovrascrivere il primo \texttt{0x00} della canary, sempre presente) e non inserendo un terminatore di stringa il \texttt{\%s} stamperà il valore della canary, inseribile all'esecuzione successiva della challenge.
