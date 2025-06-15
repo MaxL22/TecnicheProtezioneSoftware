@@ -43,4 +43,10 @@ Se c'è la possibilità, dopo la deallocazione, di eseguire una \texttt{malloc()
 
 La UAF è la vulnerabilità più frequente \textit{in natura}, più difficile da scovare e spesso permette di arrivare a esecuzione di codice arbitrario.
 
+\vfill
+
+\paragraph{TL;DR:} Se una zona viene allocata, deallocata e poi dereferenziata si potrebbe avere un undefined behavior.
+
+L'allocatore potrebbe ri-usare il chunk deallocato quando viene fatta un'allocazione di dimensione pari a quella precedente (magari dimensioni controllate dall'attaccante), portando ad avere puntatori che puntano a dati possibilmente controllati dall'attaccante.
+
 % End l4

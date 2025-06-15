@@ -4,7 +4,7 @@
 
 Si tratta di una tecnica di protezione basata su un'idea diversa dalle altre difese descritte precedentemente, le quali "complicavano" l'attacco prevenendone le fasi. 
 
-Qua il paradigma di difesa è diverso, si vuole una cosa più generale, l'idea è \textbf{definire un modello di comportamento del programma} e se l'esecuzione esce da questo modello viene segnalata un'anomalia.
+Qua il paradigma di difesa è diverso, si vuole una cosa più generale, l'idea è quella di \textbf{definire un modello di comportamento del programma} e se l'esecuzione effettiva esce da questo modello viene segnalata un'anomalia.
 
 Le "sfide" di questa idea sono: 
 \begin{itemize}
@@ -32,7 +32,9 @@ Ad esempio: si presuppone che l'attaccante
 
 Va sempre definito un threat model con ciò che è e non è lecito fare da parte dell'attaccante. Se l'attaccante riesce a rompere questi presupposti il sistema di difesa viene effettivamente superato (ad esempio, disabilita l'IRM saltando i check).
 
-\paragraph{Evitare compromissione del detector:} Per evitare che il IRM venga disabilitato sicuramente serve che il codice sia immutabile e che sia presente una sufficiente randomness all'intero dei controlli stessi. L'in-line monitor deve essere protetto da immutabilità e randomness.
+\paragraph{Evitare compromissione del detector:} Per evitare che l'IRM venga disabilitato sicuramente serve che il codice sia immutabile e che sia presente una sufficiente randomness all'intero dei controlli stessi. 
+
+L'in-line monitor deve essere protetto da immutabilità e randomness.
 
 In termini di \textbf{efficienza}: il \textbf{Classic CFI} (2005 di Microsoft Research) portava un overhead medio del 16\%, con 45\% nel caso peggiore; funzionava solo su eseguibile, non sulle librerie. Nel 2014 si è raggiunto il \href{https://www.cse.psu.edu/~gxt29/papers/mcfi.pdf}{\textbf{\texttt{Modular CFI}}} (\href{https://www.cse.psu.edu/~gxt29/}{\texttt{pagina autore}}), un modello di CFI modulare con un overhead molto più basso (5\% in media, 12\% worst case), il quale è in grado di lavorare anche su librerie.
 
@@ -66,8 +68,8 @@ Il primo passo dell'analisi statica è il \textbf{call graph}, ovvero il grafo c
 		\begin{minted}{java}
 sort2(int a[], int b[], int len)
 {
-	sort(a, len, lt);
-	sort(b, len, gt);
+    sort(a, len, lt);
+    sort(b, len, gt);
 }
 		\end{minted}
 	\end{minipage}
@@ -75,10 +77,10 @@ sort2(int a[], int b[], int len)
 	\begin{minipage}[h]{0.37\textwidth}
 		\begin{minted}{java}
 bool lt(int x, int y) {
-	return x<y;
+    return x<y;
 }
 bool gt(int x, int y) {
-	return x>y;
+    return x>y;
 }
 		\end{minted}
 	\end{minipage}
@@ -90,7 +92,7 @@ bool gt(int x, int y) {
 
 Permette di rappresentare il \textbf{flusso di chiamate} all'interno del control flow, ma si tratta di un modello piuttosto permissivo: rappresenta le chiamate ma non il flusso reale delle funzioni.
 
-Idealmente si vorrebbe un modello più restrittivo, ovvero il CFG; si introducono i \textbf{basic blocks}: contenitori di istruzioni sequenziali, terminate da un'istruzione di salto, di qualsiasi tipo (\texttt{jmp}, \texttt{ret}, \texttt{\dots}). Permette di distinguere \texttt{call} da \texttt{return}, il grafo sul codice di prima diventa:
+Idealmente si vorrebbe un modello \textit{più restrittivo}, ovvero \textbf{il CFG}; si introducono i \textbf{basic blocks}: contenitori di istruzioni sequenziali, terminate da un'istruzione di salto, di qualsiasi tipo (\texttt{jmp}, \texttt{ret}, \texttt{\dots}). Permette di distinguere \texttt{call} da \texttt{return}, il grafo sul codice di prima diventa:
 \begin{center}
 	\includegraphics[width=0.8\linewidth]{img/cfi/call2}
 \end{center}
@@ -112,7 +114,7 @@ Bisogna implementare all'interno del programma un metodo efficace per controllar
 
 Per fare ciò vengono usate delle \textbf{label}:
 \begin{itemize}
-	\item viene inserita una label all'inizio del basic block destinazione del salto, come commento, riga non di codice
+	\item viene inserita come commento una label all'inizio del basic block destinazione del salto, riga non di codice
 
 	\item prima di saltare, viene fatta una \texttt{cmp} tra il valore presente nella destinazione (dove punta il registro su cui viene fatto il salto) e il valore che dovrebbe avere la label
 
@@ -121,8 +123,10 @@ Per fare ciò vengono usate delle \textbf{label}:
 	\item se non coincidono blocca il programma
 \end{itemize}
 
+\newpage % Inevitabile, sorry Tino
+
 Il codice
-\begin{table}[h]
+\begin{table}[h!]
 	\centering
 	\begin{adjustbox}{max width=\textwidth}
 	\begin{tabular}{@{} lll | lll @{}}
@@ -140,7 +144,7 @@ Il codice
 
 Diventa:
 
-\begin{table}[h]
+\begin{table}[h!]
 	\centering
 	\begin{adjustbox}{max width=\textwidth}
 	\begin{tabular}{@{} lll | lll @{}}
@@ -187,7 +191,7 @@ Viene inserita \textbf{una label per ogni basic block}, quando c'è un indirect 
 \begin{itemize}
 	\item attacchi che manipolano il control flow seguendo le label (mimicry attacks, soprattutto con labeling semplice)
 
-	\item data leaks: hearthbleed non sarebbe stato bloccato
+	\item data leaks: \href{https://www.heartbleed.com/}{\texttt{Heartbleed}} non sarebbe stato bloccato
 
-	\item corruptions: modificare variabili di controllo per portare al flusso di esecuzione desiderato (es: overflow di una variabile "\texttt{authenticated}" su cui viene fatto un controllo)
+	\item corruptions: modificare variabili di controllo per portare al flusso di esecuzione desiderato (e.g, overflow di una variabile "\texttt{authenticated}" su cui viene fatto un controllo)
 \end{itemize}

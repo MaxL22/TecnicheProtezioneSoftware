@@ -11,7 +11,7 @@ Prevenzione e attacchi si "inseguono" sempre:
     \item \textbf{Difesa}: non usare codice in libc ma usare solo codice all'interno del text del programma, si riducono le funzioni di libreria legate all'utilizzo del processo stesso, vengono caricate solo le parti necessarie. \textbf{Attacco}: costruire le funzionalità che servono tramite Return Oriented Programming ROP
 \end{itemize}
 
-Il Return Oriented Programming ROP nasce dall'esigenza di limitare il numero di funzioni che un processo usa per la propria esecuzione. Introdotta per la prima volta nel 2007 da Hovav Shacham (\href{https://www.ush.it/team/ascii/geometry.pdf}{\textit{\texttt{The Geometry of Innocent Flesh on the Bone: Return-into-libc without Function Calls}}}).
+Il Return Oriented Programming ROP nasce dall'esigenza di limitare il numero di funzioni che un processo usa per la propria esecuzione. Introdotta per la prima volta nel 2007 da Hovav Shacham (\href{https://www.ush.it/team/ascii/geometry.pdf}{\textit{\texttt{The Geometry of Innocent Flesh on the Bone: Return-into-libc without Function \\ Calls}}}).
 
 L'idea di base è: prendo pezzi di codice dalle funzioni già presenti in memoria e le unisco per "costruire" un attacco, ovvero il programma voluto dall'attaccante. 
 
@@ -57,11 +57,11 @@ Avendo come gadget
 
 E il valore 5 sullo stack, possiamo fare in modo che il valore puntato da \texttt{\%esp} sarà caricato in \texttt{\%edx} ed \texttt{\%esp} spostato sopra. 
 
-Al termine di ogni gadget si ha il \texttt{ret}, fondamentale per concatenare i gadget. Cosa fa una \texttt{ret}? Prende il primo valore sullo stack (\texttt{pop} di cosa punta \texttt{\%esp}) e continua da lì (codice puntato) l'esecuzione del programma. 
+Al termine di ogni gadget si ha il \texttt{ret}, fondamentale per concatenare i gadget. Cosa fa una \texttt{ret}? Prende il primo valore sullo stack (\texttt{pop} del valore puntato da \texttt{\%esp}) e prosegue da lì (codice puntato) l'esecuzione del programma.
 
-Se sullo stack è presente l'indirizzo del gadget successivo, l'esecuzione proseguirà da lì.
+Quindi, se sullo stack è presente l'indirizzo del gadget successivo, l'esecuzione proseguirà da lì.
 
-In altre parole: cambio l'indirizzo di ritorno con l'indirizzo del primo gadget, sullo stack ci sarà la chain di return address di gadget e parametri usati dagli stessi, ogni volta che ne viene eseguito uno (a partire dal primo), lo stack pointer scende e trova quello dopo.
+In altre parole: cambio l'indirizzo di ritorno con l'indirizzo del primo gadget, sullo stack ci sarà la chain di return address dei gadget e i relativi parametri; ogni volta che ne viene eseguito uno (a partire dal primo), lo stack pointer scende e trova il successivo.
 
 Esistono tool automatici per automatizzare la ricerca e unione dei gadget, chiamati ROP Compiler.
 
@@ -100,7 +100,7 @@ I gadget sono sempre sufficienti per portare avanti un attacco? Generalmente sì
 
 Un ROP Compiler prende in input:
 \begin{itemize}
-	\item codice che voglio eseguire ad alto livello
+	\item codice malevolo da eseguire ad alto livello
     
 	\item programma vittima
 \end{itemize}
@@ -151,9 +151,9 @@ Dato che a ogni connessione il server mantiene gli stessi valori (nuovo thread, 
 
 \paragraph{Leakare la canary:} Trovo la dimensione del buffer (tirando a indovinare), per poi provare a sovrascrivere un byte della canary alla volta, provando tutti i valori finché smette di crashare, per poi passare al byte successivo.
 
-\paragraph{Defeat the ASLR:} Provo a indovinare il return address, similmente a come fatto per la canary, bisogna scoprire \textit{più o meno} dove si trova il programma in memoria.
+\paragraph{Defeat the ASLR:} Provo a indovinare il return address, in maniera simile a come fatto per la canary, bisogna scoprire \textit{più o meno} dove si trova il programma in memoria.
 
-Una volta scoperta la canary, si può tirare a indovinare possibili return address finché non si trova uno degli indirizzi dov'è posizionato il programma (non crasha).
+Una volta scoperta la canary, si può tirare a indovinare possibili return address finché non si trova uno degli indirizzi dov'è posizionato il programma (non crasha quando prova a uscire).
 
 \paragraph{Blind search:} Bisogna trovare in modo blind i gadget che permettano di fare la \texttt{write}. Per una \texttt{write(sd, buffer, length)} le istruzioni che servono sono
 
@@ -177,7 +177,7 @@ Quindi servono i gadget per fare
 
 Il \texttt{sd} si può indovinare (8 bit, facile), ma questi gadget vanno trovati senza avere il binario. 
 
-Per indovinare il gadget si può sfruttare la differenza di comportamento tra \texttt{pop} e altre istruzioni: \texttt{pop} sposta il \texttt{esp}. 
+Per indovinare il gadget si può sfruttare la differenza di comportamento tra \texttt{pop} e altre istruzioni: \texttt{pop} sposta il registro \texttt{esp}.
 
 Dopo aver trovato la canary si tira a indovinare, sovrascrivendo il return address, per trovare due gadget:
 \begin{itemize}

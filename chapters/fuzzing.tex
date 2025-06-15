@@ -1,7 +1,7 @@
 % !TeX spellcheck = it_IT
 \section{Fuzz Testing}
 
-Il \textbf{fuzzing} rientra tra le tecniche di ricerca di vulnerabilità. Nella sua forma più semplice consiste nell'inviare una elevata quantità di input automaticamente generati ad un target (programma o meno, qualsiasi cosa si debba testare). 
+Il \textbf{fuzzing} rientra tra le tecniche di ricerca di vulnerabilità. Nella sua forma più semplice consiste nell'inviare un'elevata quantità di input automaticamente generati a un target (programma o meno, qualsiasi cosa si debba testare). 
 
 L'obiettivo della ricerca è \textbf{trovare stati invalidi} del programma. Per esempio, su un binario, il fuzzing genera input fino a far crashare il programma.
 
@@ -47,11 +47,11 @@ Altre tipologie di executor, ad esempio per un kernel, dato che non si può cari
 
 \paragraph{Corpus:} Gli input vanno salvati da qualche parte. Il Corpus contiene due elementi:
 \begin{itemize}
-	\item \textbf{Solutions}: input che assolvono al loro compito; ovvero causano crash/raggiungono l'obiettivo
+	\item \textbf{Solutions}: input che assolvono al loro compito; ovvero causano crash o comunque raggiungono l'obiettivo
 
 	\item \textbf{Interesting}: input che raggiungono zone \textit{interessanti} del programma (e quindi vengono messi in coda per eventuale mutazione)
 \end{itemize}
-Quelle non interessanti vengono scartate.
+Quelle non interessanti vengono scartate (a cosa servono?).
 
 \paragraph{Generator:} Il componente che si occupa di generare input, secondo grammatiche o regole di generazione. In generale, gli input generati devono rispettare una struttura.
 

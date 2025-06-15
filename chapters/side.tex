@@ -37,7 +37,7 @@ Più le cache sono vicine al core, più sono veloci. Queste tipologie di attacch
 
 \paragraph{Side channel attacks:} Attacchi (studiati soprattutto in crittografia) che studiano l'ambiente di esecuzione di un processo/dispositivo; anche senza guardare fisicamente all'interno del dispositivo, si possono fare inferenze sul contenuto del dispositivo? Si tratta di inferenze a partire dall'ambiente circostante per dedurre il contenuto.
 
-Esempio: considerando una smart card, l'unica interazione possibile con una smart card è inviare del testo in chiaro e ricevere del testo cifrato (si presuppone che esistano difese hardware contro l'aprire fisicamente la smart card e leggere). Si può guardare l'ambiente esterno alla smart card per capire la chiave, ad esempio, guardando quanta energia elettrica usa la smart card per cifrare il testo: guardando l'onda di esecuzione, ogni testo avrà un'onda differente e si sfrutta conoscenza sull'algoritmo di cifratura per ottenere informazioni sulla chiave usata; ad esempio, alcune ottimizzazioni in base al contenuto di testo e chiave usate dall'algoritmo potrebbero essere indizi. Magari non si può capire la chiave completa, ma capirne il 90\% per poter fare brute force sul resto è good enough.
+Esempio: considerando una smart card, l'unica interazione possibile con una smart card è inviare del testo in chiaro e ricevere del testo cifrato (si presuppone che esistano difese hardware contro l'aprire fisicamente la smart card e leggere). Si può guardare l'ambiente esterno alla smart card per capire la chiave, ad esempio, guardando quanta energia elettrica usa la smart card per cifrare il testo: guardando l'onda di esecuzione, ogni testo avrà un'onda differente e si sfrutta conoscenza sull'algoritmo di cifratura per ottenere informazioni sulla chiave usata; ad esempio, alcune ottimizzazioni in base al contenuto di testo e chiave usate dall'algoritmo potrebbero essere indizi. Magari non si può capire la chiave completa, ma capirne il 90\% per poter fare brute force sul resto è \textit{good enough}.
 
 In generale, l'analisi dell'ambiente circostante ad un dispositivo permette di dedurre informazioni riguardo l'esecuzione.
 
@@ -106,13 +106,13 @@ Questi attacchi vengono portati su un unico core, "isolando" l'esecuzione di pro
 
 Meltdown e spectre usano vulnerabilità all'interno della CPU. Un'ottimizzazione (abbastanza spinta) della CPU è la \textbf{speculative execution} (presente all'interno di ogni CPU moderna). 
 
-Un programma è costituito di esecuzioni sequenziali: lento. L'esecuzione speculativa è "\textit{tentare di indovinare}" cosa dovrà fare la CPU nei passaggi successivi, vuole parallelizzare il più possibile l'esecuzione delle istruzioni (a livello di micro-operation, più in basso dell'assembly).
+Un programma è costituito di esecuzioni sequenziali: lento. L'esecuzione speculativa è "\textit{tentare di indovinare}" cosa dovrà fare la CPU nei passaggi successivi, parallelizzando il più possibile l'esecuzione delle istruzioni (a livello di micro-operation, più in basso dell'assembly).
 
 Il processore deve capire che istruzioni sono dipendenti tra loro, quali operazioni vanno eseguite in sequenza e quali invece possono essere parallelizzate.
 
 All'interno di una reservation station (shadow memory) la CPU memorizza le istruzioni da eseguire sequenzialmente. 
 
-Ma la "prossima istruzione" che sta tentando di eseguire in anticipo non è detto che andrà effettivamente eseguita (detta transient instruction, sta effettivamente speculando sull'esecuzione); potrebbe succedere qualcosa tra \textit{adesso} e quando dovrà davvero essere eseguita l'istruzione "speculata" che ne evita l'esecuzione (come ad esempio un \texttt{segfault}).
+Ma la "prossima istruzione" che sta tentando di eseguire in anticipo non è detto che andrà effettivamente eseguita (detta transient instruction, sta effettivamente speculando sull'esecuzione); potrebbe succedere qualcosa tra \textit{adesso} e quando dovrà davvero essere eseguita l'istruzione "speculata" che ne evita l'esecuzione (come, ad esempio, un \texttt{segfault}).
 
 I risultati dell'esecuzione speculativa sono tenuti all'interno di un buffer (ROB), non vengono scritti immediatamente nei registri/memoria dell'architettura finché l'esecuzione non risulta confermata. Tutta la speculazione non è visibile all'architettura finché l'esecuzione non è confermata.
 %mdsattacks.com/diagram.html
@@ -135,9 +135,9 @@ access(probe_array[data*4096]);
 address = probe_array + data*4096;
 \end{minted}
 
-La prima istruzione è un \textbf{accesso ad un indirizzo del kernel}: siamo in un programma non privilegiato, quindi causerà un \texttt{segmentation fault}. Le istruzioni dopo sono "fattibili" (accessi ad un array definito all'interno del programma), non verranno mai eseguite, il programma si fermerà sempre prima, ma la speculative execution non lo sa e le vede come indipendenti tra loro. 
+La prima istruzione è un \textbf{accesso ad un indirizzo del kernel}: siamo in un programma non privilegiato, quindi causerà un \texttt{segmentation fault}. Le istruzioni dopo sono "fattibili" (accessi a un array definito all'interno del programma), ma non verranno mai eseguite, il programma si fermerà sempre prima, questo però la speculative execution non lo sa e le vede come indipendenti tra loro.
 
-Ognuna delle operazioni successive verrà divisa in microop ed eseguite in parallelo, il dato non viene faultato subito ma viene eseguito, anche se di nascosto (\textit{se} vince la race condition in cui la seconda istruzione finisce prima della prima all'interno del buffer, ma basta fare qualche tentativo anche nel peggiore dei casi).
+Ognuna delle operazioni successive verrà divisa in microop ed eseguite in parallelo, il dato non viene faultato subito ma viene eseguito, anche se di nascosto (\textit{se} vince la race condition in cui la seconda istruzione finisce prima della prima all'interno del buffer, ma basta fare qualche tentativo, anche nel peggiore dei casi).
 
 Le istruzioni che sono finite in shadow memory vengono \textbf{eseguite e poi bloccate}, l'architettura non le vede, ma finiscono comunque all'interno della \textbf{cache}. Sarà presente all'interno di una linea della cache il valore a cui è stato fatto l'accesso, ma che non doveva essere caricato.
 

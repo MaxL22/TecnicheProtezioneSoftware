@@ -42,7 +42,7 @@ La \textbf{dynamic analysis} invece utilizza esecuzioni più concrete per mostra
 
 Solitamente, i tool di detection hanno un approccio \textit{ibrido}, usando tecniche statiche e dinamiche per ottenere un buon compromesso tra soundness e completeness. Il trade off si traduce in quanti falsi positivi e falsi negativi saranno presenti.
 
-Una differenza importante tra static e dynamic execution sono le performance: la static analysis è una analisi del codice, di conseguenza è molto più veloce dell'esecuzione vera e propria del programma (la dynamic deve eseguire davvero il programma, quindi può essere molto lenta, quanto ci può mettere il programma?).
+Una differenza importante tra static e dynamic execution sono le performance: la static analysis è una analisi del codice, di conseguenza è molto più veloce dell'esecuzione vera e propria del programma (la dynamic deve eseguire davvero il programma, quindi può essere molto lenta; quanto ci può mettere il programma?).
 
 \subsection{Symbolic Execution}
 
@@ -50,7 +50,9 @@ La static analysis è una analisi off-line a partire da codice sorgente o binari
 
 Un classico esempio di analisi statica è il compilatore di un programma: per la compilazione e ottimizzazione bisogna effettuare un'analisi del codice; molti tool di analisi statica si basano su ciò che produce il compilatore. L'analisi statica può usare o meno l'esecuzione simbolica.
 
-La symbolic execution è una tecnica di static analysis che permette di simulare in maniera off-line un'esecuzione del programma; "finge" un'esecuzione del programma. Si chiama "simbolica" perché vengono usati valori simbolici, viene calcolata un'approssimazione del programma per ottenere formule che rappresentano lo stato del programma in diversi punti di esecuzione. 
+La symbolic execution è una tecnica di static analysis che permette di simulare in maniera off-line un'esecuzione del programma; "finge" un'esecuzione del programma. 
+
+Si chiama "simbolica" perché vengono usati valori simbolici, viene calcolata un'approssimazione del programma per ottenere formule che rappresentano lo stato del programma stesso in diversi punti di esecuzione. 
 
 Il testing funziona: i bug riportati sono reali, ma ogni test è sostanzialmente un'asserzione, ogni condizione di test può controllare solo \textit{una} possibile esecuzione. In breve, complete but not sound. Si spera che il caso di test generalizzi abbastanza, ma non ci sono garanzie.
 
@@ -73,11 +75,11 @@ Esempio:
 int a = alpha, b = beta, c = gamma; // symbolic!
 int x = 0, y = 0, z = 0;
 if (a) {
-	x = -2;
+    x = -2;
 }
 if (b < 5) {
-	if (!a && c) { y = 1; }
-	z = 2;
+    if (!a && c) { y = 1; }
+    z = 2;
 }
 assert(x+y+z != 3)
 		\end{minted}
@@ -144,10 +146,9 @@ Il \textbf{controllo del programma} può essere \textbf{condizionato dai valori 
 x = read();
 if (x>5) {
    y = 6;
-   if (x<3)
+   if (x<10)
       y = 5;
-} 
-else 
+} else 
    y = 0;
 		\end{minted}
 	\end{minipage}
@@ -173,11 +174,11 @@ a[z] = 1;
 	\end{minipage}
 \end{center}
 
-Le due condizioni permettono di controllare che non di presentino buffer overflow all'interno del programma. Trovare delle soluzioni alle path condition rilevanti (nell'esempio, per la riga \texttt{5} $\pi  =12 + \alpha < 0$ e \texttt{7} $\pi = \neg (12 + \alpha < 0) \wedge 12 + \alpha \geq 4$) vuol dire trovare classi di input che permettono di avere la vulnerabilità per cui si sta testando (buffer overflow in questo caso).
+Le due condizioni permettono di controllare che non si presentino buffer overflow all'interno del programma. Trovare delle soluzioni alle path condition rilevanti (nell'esempio, per la riga \texttt{5} $\pi  =12 + \alpha < 0$ e \texttt{7} $\pi = \neg (12 + \alpha < 0) \wedge 12 + \alpha \geq 4$) vuol dire trovare classi di input che permettono di avere la vulnerabilità per cui si sta testando (buffer overflow in questo caso).
 
 Ogni volta che si presenta un branch si ha una fork dell'esecuzione simbolica: si ha un symbolic executor per ogni path di esecuzione. Accade quando si possono avere soluzioni sia alla path condition che alla sua negazione. 
 
-\paragraph{Libraries e codice nativo:} L'esecuzione simbolica prima o poi raggiungerà i "limiti" dell'applicazione: librerie, sistema o chiamate a codice assembly. 
+\paragraph{Libraries e codice nativo:} L'esecuzione simbolica prima o poi raggiungerà i "limiti" dell'applicazione: librerie, sistema o chiamate a codice assembly.
 
 Le soluzioni a questo problema possono essere: 
 \begin{itemize}
@@ -190,7 +191,7 @@ Le soluzioni a questo problema possono essere:
 
 Anche chiamata \textbf{dynamic symbolic execution}, il nome viene da concrete+symbolic. Lavora con gli stessi concetti della symbolic execution ma è un ibrido tra analisi statica e dinamica.
 
-Si instrumenta il programma per fare symbolic execution durante l'esecuzione: a partire da un input concreto si esegue il programma, ma si traccia l'esecuzione simbolica durante l'esecuzione concreta; si tiene traccia delle path condition (shadow memory). Ogni volta che si trova un ramo condizionale nel flusso di controllo si tiene traccia del ramo percorso concretamente e la condizione per percorrerlo.
+Si instrumenta il programma per fare symbolic execution durante l'esecuzione: a partire da un input concreto si esegue il programma, ma si traccia l'esecuzione simbolica durante l'esecuzione concreta; si tiene traccia delle path condition (shadow memory). Ogni volta che viene trovato un ramo condizionale nel flusso di controllo si tiene traccia del ramo percorso concretamente e la condizione per percorrerlo.
 
 Terminata l'esecuzione di un percorso, si ottiene una path condition "completa", per generare un percorso alternativo da eseguire si nega una delle condizioni e si usa un constraint solver per trovare un nuovo input che soddisfi tali condizioni.
 
@@ -198,7 +199,7 @@ Si esplora un percorso alla volta tramite valori concreti. Permette di avere sem
 
 % End L9
 
-%L11 Here
+% L11 Here
 
 In breve, la concolic execution parte da input simbolici concreti, associando alle variabili simboliche un valore concreto in modo da ottenere un'esplorazione del programma secondo il valore scelto. 
 
@@ -243,7 +244,7 @@ Non è noto \textit{a priori} che path vanno presi, quindi una certa quantità d
 	\item scegliere casualmente da path con la stessa priorità
 \end{itemize}
 
-Uno dei problemi con la randomness è la riproducibilità: vanno \textbf{mantenuti i valori dell'esecuzione}, altrimenti potrebbe non essere chiaro come un bug si è presentato; la comparsa dell'errore può essere legata ad una certa sequenza di stati precedenti, i.e., non è un singolo input che fa crashare il programma ma una sequenza; nel concreto vuol dire \textbf{tenere traccia dei path percorsi}, generalmente tramite il seed di  un generatore pseudo-random.
+Uno dei problemi con la randomness è la riproducibilità: vanno \textbf{mantenuti i valori dell'esecuzione}, altrimenti potrebbe non essere chiaro come un bug si è presentato; la comparsa dell'errore può essere legata a una certa sequenza di stati precedenti, i.e., non è un singolo input che fa crashare il programma ma una sequenza; nel concreto vuol dire \textbf{tenere traccia dei path percorsi}, generalmente tramite il seed di  un generatore pseudo-random.
 
 \paragraph{Coverage-guided heuristic:} Tecnica di ricerca basata sul \textbf{numero di volte in cui viene visitata una determinata istruzione}. Il programma è composto da un determinato numero di istruzioni, viene aggiunto uno "score" per indicare quante volte è stata eseguita ogni istruzione. 
 
@@ -255,7 +256,7 @@ Per arrivare in una certa zona di memoria potrebbero servire determinate precond
 \begin{itemize}
 	\item la prima generazione comincia con una esecuzione random completa
 	
-    \item tutte quelle successive negano un branch dell'esecuzione ottenuta nella generazione precedente in modo da ottenere un nuovo percorso, con path prefix divers
+    \item tutte quelle successive negano un branch dell'esecuzione ottenuta nella generazione precedente in modo da ottenere un nuovo percorso, con path prefix diverso
 \end{itemize}
 
 Vengono usate coverage heuristics per determinare delle priorità.

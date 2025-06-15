@@ -17,7 +17,7 @@ Le \textbf{difese} possono essere a \textbf{livello} di:
 	\item \textbf{architetturale}: componenti hardware che permettono di bloccare gli attacchi
 \end{itemize}
 
-Per contrastare ASLR sono nati gli attacchi Return Oriented Programming ROP (vedi \ref{sec:rop}), e per contrastare questi esiste la Control Flow Integrity CFI (vedi \ref{sec:cfi}, controllo sulle transizioni del programma, se va "fuori dagli schemi" la transizione è bloccata, come ad esempio cambiando il return address).
+Per contrastare ASLR sono nati gli attacchi Return Oriented Programming ROP (vedi \ref{sec:rop}), e per contrastare questi esiste la Control Flow Integrity CFI (vedi \ref{sec:cfi}, controllo sulle transizioni del programma, se va "fuori dagli schemi", ad esempio modificando il return address, la transizione è bloccata).
 
 \subsection{Memory Safety}
 
@@ -34,7 +34,7 @@ Combina le idee di temporal safety (accedere solo a memoria attualmente allocata
 
 \subsubsection{Spatial safety}
 
-Permette di far valere la proprietà di \textbf{sicurezza spaziale della memoria}, ovvero andare a vedere che un puntatore non vada a puntare oltre una zona di memoria stabilita.
+Permette di far valere la proprietà di \textbf{sicurezza spaziale della memoria}, ovvero controllare che un puntatore non vada a puntare oltre una zona di memoria stabilita.
 
 \paragraph{Fat Pointers:} Un puntatore non è più "solo un puntatore", ma diventa una tripla $(p,b,e)$ dove:
 \label{par:fat-pointers}
@@ -55,13 +55,15 @@ L'aritmetica sui puntatori modifica solo $p$, senza toccare $b$ ed $e$; $p$ si s
 
 I Fat Pointers sono \textbf{puntatori che hanno dati aggiuntivi}, come la tripla descritta in precedenza; metadati aggiunti ai puntatori. 
 
-Effettuare il controllo \textbf{a ogni accesso} degrada le performance (soprattutto quando non è l'unico controllo da effettuare, questo è solo per la spatial safety). Il controllo è oneroso ed è necessaria memoria aggiuntiva per i metadati legati ad ogni puntatore.
+Effettuare il \textbf{controllo a ogni accesso} degrada le performance (soprattutto quando non è l'unico controllo da effettuare, questo è solo per la spatial safety). Il controllo è oneroso e necessita memoria aggiuntiva per i metadati legati a ogni puntatore.
 
-Il compilatore di un linguaggio memory safe deve istanziare memoria aggiuntiva per ogni puntatore e aggiungere il codice per i controlli, \textit{a ogni accesso}.
+Il compilatore di un linguaggio memory safe deve istanziare memoria aggiuntiva, \textit{per ogni puntatore}, e aggiungere il codice per i controlli, \textit{a ogni accesso}.
 
 \paragraph{Low Fat Pointers:} Si tratta di una variante che vuole ridurre l'overhead in termini di spazio e prestazioni. 
 
-L'idea è quella di "codificare" all'interno dell'indirizzo stesso i metadati, la rappresentazione nativa del puntatore può inglobare i metadati. La disposizione della memoria viene usata per ricavare le informazioni prima salvate nei metadati in tempo costante.
+L'idea è quella di "codificare" all'interno dell'indirizzo stesso i metadati, permettendo alla rappresentazione nativa del puntatore di inglobare i metadati stessi. 
+
+La disposizione della memoria viene usata per ricavare le informazioni prima salvate nei metadati, in tempo costante.
 
 La memoria virtuale viene divisa in "regioni", ciascuna riservata a oggetti di dimensioni simili. Questo consente di dedurre la dimensione di un oggetto basandosi solo sull'indirizzo del puntatore (se appartiene a quella regione deve avere una certa dimensione).
 
@@ -123,7 +125,7 @@ In breve, la type safety costa performance, quindi, anche se ci sono soluzioni, 
 
 \paragraph{Dynamically Typed Languages:} All'interno dei linguaggi dynamically typed, tutti gli oggetti hanno \textbf{un solo tipo: dinamico}. 
 
-Ogni operazione su un oggetto di tipo dinamico è permessa, ma tale operazione potrebbe non essere implementata, portando a un'eccezione. Tutto è permesso, ma se run-time il tipo effettivo non implementa l'operazione viene sollevata un'eccezione.
+Ogni operazione su un oggetto di tipo dinamico è permessa, ma tale operazione potrebbe non essere implementata, portando a un'eccezione. Tutto è permesso, ma se a run-time il tipo effettivo non implementa l'operazione viene sollevata un'eccezione.
 
 \paragraph{Enforce Invariants:} Gli invarianti sono delle \textbf{formule logiche} per garantire determinate proprietà sull'esecuzione di dei pezzi di codice, i quali rimangono costantemente veri in certi punti del programma. 
 
@@ -145,7 +147,7 @@ y = x;  //BAD: policy on y is not as strong as x
 
 Sapendo che ogni attacco ha determinati prerequisiti, un modo per prevenirli è fare in modo che le condizioni non si possano presentare. Questo aumenta la complessità dell'attacco, rendendo l'exploit più difficile da sfruttare.
 
-Quindi, tento di evitare bug, ma aggiungo protezioni nel caso qualcosa sfugga. Per evitare i bug esistono secure coding practices e tecniche di code review avanzate, come program analysis, fuzzing, \dots.
+Quindi, si tenta di evitare bug, ma vengono aggiunte protezioni nel caso qualcosa sfugga. Per evitare i bug esistono secure coding practices e tecniche di code review avanzate, come program analysis, fuzzing, \dots
 
 Per evitare l'exploitation, quali sono le fasi di un attacco di stack smashing?
 \begin{itemize}
@@ -176,21 +178,21 @@ Come viene scelto il valore della canary:
 
 In questo modo, se anche viene bypassata la canary, il programma va in panico prima di eseguire codice posizionato nello stack/heap. 
 
-Nelle zone solo dati non si può eseguire codice (generalmente, esistono casi particolari). Si chiama Data Execution Prevention, non posso iniettare codice eseguibile.
+Nelle zone solo dati non si può eseguire codice (generalmente, esistono casi particolari). Si chiama Data Execution Prevention, non si può iniettare codice eseguibile.
 
-\texttt{Return-to-libc:} Metodo trovato per evadere la DEP, l'idea è inserire nel return address funzioni presenti all'interno della libreria di sistema, le quali sono ovviamente eseguibili. L'injection vector sovrascrive il return address con l'indirizzo di una funzione di sistema, preparando lo stack con i parametri corretti per l'esecuzione di tale funzione. Modifico l'esecuzione del codice senza iniettarlo.
+\texttt{Return-to-libc:} Metodo trovato per evadere la DEP, l'idea è inserire nel return address funzioni presenti all'interno della libreria di sistema, le quali sono ovviamente eseguibili. L'injection vector sovrascrive il return address con l'indirizzo di una funzione di sistema, preparando lo stack con i parametri corretti per l'esecuzione di tale funzione. Viene modificato il control flow del senza iniettare codice.
 
-\paragraph{Address Space Layout Randomization ASLR:} Randomizzare il layout di memoria, ogni volta che il processo va in memoria vengono usate zone di memoria differenti; ho un sacco di spazio, metto dove voglio il programma. 
+\paragraph{Address Space Layout Randomization ASLR:} Randomizzare il layout di memoria, ogni volta che il processo va in memoria vengono usate zone di memoria differenti; su \texttt{x64} soprattutto, ho un sacco di spazio, metto dove voglio il programma. 
 
 In questo modo i valori esatti degli indirizzi di memoria sono sconosciuti, permette di inibire l'ultima fase di sovrascrittura del return address: se non so dove sia il mio codice non so dove far puntare il return address. Permette anche di evitare gli attacchi come \texttt{return-to-libc} randomizzando la posizione delle librerie di sistema.
 
 Esistono diverse implementazioni, ma in generale bisogna notare che:
 \begin{itemize}
-	\item sposta solo l'offset delle zone di memoria, non le posizioni relative all'interno di essere
+	\item sposta solo l'offset delle zone di memoria, non le posizioni relative all'interno di esse
 
-	\item potrebbe essere applicato solo alle librerie (sempre position indipendent), non al codice del programma (potrebbero esserci riferimenti "statici" a zone del programma)
+	\item potrebbe essere applicato solo alle librerie (sempre position indipendent), ma non al codice del programma (potrebbero esserci riferimenti "statici" a zone del programma)
 
-	\item servono abbastanza bit random, altrimenti si può fare brute-force (su architettura 32 bit non è sicuro, su 64 è già molto meglio)
+	\item servono \textit{abbastanza} bit random, altrimenti si può fare brute-force (su architettura 32 bit non è sicuro, su 64 è già molto meglio)
 \end{itemize}
 
 %End L6
