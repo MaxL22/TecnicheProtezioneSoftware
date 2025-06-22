@@ -12,7 +12,7 @@ Ci sono diverse \textbf{tipologie di fuzzer}, si possono categorizzare per due e
 	\item introspection: livello di conoscenza del programma
 \end{itemize}
 
-\paragraph{Introspection:} Si possono avere 3 livelli principali: 
+\paragraph{Introspection:} Si possono avere 3 livelli principali:
 \begin{itemize}
 	\item \textbf{black box}: non sanno nulla di come è formato il programma all'interno
 	
@@ -103,6 +103,49 @@ Quando rilevano un'anomalia fanno crashare il programma, con un log relativo all
 Esempio: ASan (tra le altre cose) aggiunge delle "red zone" attorno alle zone di memoria, ovvero zone senza permessi di lettura o scrittura: quando il programma prova ad accedervi si genera un \texttt{segfault}. Instrumenta il programma per cercare tutte le allocazioni, tutti gli utilizzi della memoria in generale (con le relative ottimizzazioni, non così semplice).
 
 Ovviamente i sanitizer non vengono usati in produzione, non si tratta di un comportamento desiderato, oltre al fatto che rallentano l'esecuzione.
+
+\paragraph{Confronto con symbolic/concolic execution:} Rispetto alla concolic execution: 
+\begin{itemize}
+    \item Non richiede necessariamente una conoscenza profonda del codice interno (black/grey box)
+    
+    \item L'input è generato/mutato casualmente (secondo euristiche), mentre per la concolic deriva da vincoli logici (più computazionalmente costosi); la symbolic execution richiede di trovare input concreti con SMT solver
+    
+    \item Ha un overhead basso rispetto alla necessità di avere analisi simbolica e SMT solver
+    
+    \item Inefficace nel caso di vincoli complessi, mentre la concolic genera input "sicuri"
+    
+    \item La symbolic/concolic esplora sistematicamente tutti i percorsi, il fuzzing potrebbe avere peggiore coverage (l'esplorazione si basa comunque su un metodo casuale)
+    
+    \item Migliore efficienza su grandi progetti, ma copertura meno approfondita di percorsi complessi
+\end{itemize}
+
+In generale, il fuzzing funziona meglio in casi contenenti input esterni, syscall e condizioni facili da triggerare casualmente. Esempio:
+\begin{minted}{c}
+void func(char* input) {
+    char buffer[64];
+    strcpy(buffer, input);  // Crash con input > 64 bytes
+    // Chiamata esterna complessa
+    FILE* file = fopen("/dev/random", "r");
+}
+\end{minted}
+La symbolic execution potrebbe bloccarsi sulla syscall in quanto non può emulare dispositivi esterni; in generale fa più fatica con chiamate esterne e funzioni che deve trattare come black box.
+
+Invece la symbolic execution è più efficiente quando le condizioni richieste sono molto specifiche e difficilmente raggiungibili in maniera casuale. Esempio:
+\begin{minted}{c}
+void checksum(char* input) {
+    int sum = 0;
+    // Vincolo complesso: 1000 come somma dei valori ASCII
+    for (int i = 0; i < 8; i++) {
+        sum += input[i]; 
+    }
+    // Branch "nascosto" al fuzzing
+    if (sum == 1000) {
+        //...
+    }
+}
+\end{minted}
+
+Il fuzzing difficilmente troverà una combinazione di valori corretta, la quale può essere trovata facilmente tramite symbolic execution.
 
 \vfill
 

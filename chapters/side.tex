@@ -33,7 +33,7 @@ In generale, in una CPU esistono più tipologie e livelli di cache
 \end{itemize}
 Più le cache sono vicine al core, più sono veloci. Queste tipologie di attacchi lavorano principalmente su cache L3. 
 
-\paragraph{Micro-architecture attack:} Attacchi alla micro-architettura, sono attacchi che si posizionano nel layer tra software e hardware. 
+\paragraph{Micro-architecture attack:} Attacchi alla micro-architettura, sono attacchi che si posizionano nel layer tra software e hardware.
 
 \paragraph{Side channel attacks:} Attacchi (studiati soprattutto in crittografia) che studiano l'ambiente di esecuzione di un processo/dispositivo; anche senza guardare fisicamente all'interno del dispositivo, si possono fare inferenze sul contenuto del dispositivo? Si tratta di inferenze a partire dall'ambiente circostante per dedurre il contenuto.
 
@@ -62,7 +62,7 @@ In seguito $P1$ rilascia l'esecuzione e fa andare in esecuzione $P2$, il quale c
 
 Quando $P1$ torna in esecuzione, in seguito a $P2$, farà
 \begin{itemize}
-	\item \textbf{reload}: carica (accede) ad ogni indirizzo virtuale presente all'interno del codice, per poi calcolare il tempo di accesso a ogni indirizzo (access time)
+	\item \textbf{reload}: carica (accede) a ogni indirizzo virtuale presente all'interno del codice, per poi calcolare il tempo di accesso a ogni indirizzo (access time)
 \end{itemize}
 
 Dal punto di vista della cache, gli unici indirizzi al suo interno sono quelli eseguiti da $P2$:
@@ -145,6 +145,23 @@ Tramite prime \& probe si può risalire a quale linea kernel (privilegiata) è s
 
 Grazie al timing possiamo capire il valore: l'accesso è più veloce solamente alla linea $x$: il valore di \texttt{data}, caricato durante l'accesso out-of-order era $x$.
 
+Esempio semplificato di codice: 
+\begin{minted}{c}
+// Indirizzo del valore cercato
+volatile uint8_t *addr = &secret_value;
+// Array per il side-channel (cache timing)
+uint8_t array[256 * 4096]; // 256 pagine * 4KB (dim cache)
+// Flush dell'array dalla cache
+for (int i = 0; i < 256; i++)
+    _mm_clflush(&array[i * 4096]);
+// Tentativo di accesso, genererà segfault
+value = *addr;
+// Accesso speculativo, influisce sulla cache
+array[value * 4096] = 0x42; // Dipende dal valore segreto
+// Misura del tempo di accesso per trovare il valore
+val = cache_timing();
+\end{minted}
+
 \subsection{Spectre}
 
 \href{https://spectreattack.com/spectre.pdf}{\texttt{Spectre}} è una vulnerabilità che sfrutta:
@@ -161,6 +178,34 @@ La branch prediction unit è un componente all'interno delle CPU, fa parte (circ
 Quindi, facendo un accesso a un array, con un indice valido, 99 volte, e alla 100esima viene messo un indice out of bound, la branch prediction eseguirà lo stesso l'istruzione, prima che il programma si accorga che l'accesso non è valido. Il valore caricato dalla branch prediction unit verrà, ancora una volta, caricato in cache.
 
 Similmente a meltdown, un'istruzione che non doveva essere eseguita è stata anticipata, con effetto sulla cache, quindi ne si può capire il valore. 
+
+Esempio di codice spectre:
+\begin{minted}{c}
+unsigned int array1_size = 16;
+uint8_t array1[16] = {/* ... */};
+uint8_t array2[256 * 512]; // Array per side channel
+// Victim function
+void victim_function(size_t x) {
+    if (x < array1_size) {
+        // Accede speculativamente anche se x è fuori limite
+        uint8_t value = array1[x];
+        uint8_t temp = array2[value * 512];
+    }
+}
+void main() {
+    size_t malicious_x = out_of_bound_value;
+    // Pulisce array2 dalla cache
+    for (int i = 0; i < 256; i++)
+        _mm_clflush(&array2[i * 512]);
+    // "Allenamento" con input valido
+    for (int i = 0; i < 100; i++)
+        victim_function(i % array1_size);
+    // Chiamata speculativa con indice malevolo
+    victim_function(malicious_x);
+    // Timing delle righe di cache
+    val = cache_timing();
+}
+\end{minted}
 
 %End L12 
 %Fine corso :-(

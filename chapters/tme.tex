@@ -43,6 +43,26 @@ Se c'è la possibilità, dopo la deallocazione, di eseguire una \texttt{malloc()
 
 La UAF è la vulnerabilità più frequente \textit{in natura}, più difficile da scovare e spesso permette di arrivare a esecuzione di codice arbitrario.
 
+\paragraph{Esempio di UAF:}
+\begin{minted}{c}
+// 1) Alloca e inizializza
+char *e = malloc(SIZE);
+// ... Uso del puntatore
+
+// 2) Libera la memoria
+free(e);
+
+// 3) Nel frattempo, alloca un buffer di uguale dimensione
+// per "occupare" la stessa area
+char *hijack = malloc(SIZE);
+strcpy(hijack, "allowed");
+
+// 4) Uso ancora il puntatore liberato
+if (strcmp(e, "allowed") == 0){
+    // privileged stuff
+}
+\end{minted}
+
 \vfill
 
 \paragraph{TL;DR:} Se una zona viene allocata, deallocata e poi dereferenziata si potrebbe avere un undefined behavior.

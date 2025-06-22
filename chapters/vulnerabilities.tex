@@ -11,7 +11,7 @@ Di conseguenza, una tecnica può essere
 \begin{itemize}
 	\item Dinamica e automatica, esempio: binary instrumentation (inserire codice a runtime) o fuzzing (inviare input con l'obiettivo di trovare comportamenti anomali)
     
-	\item Dinamica e manuale, esempio: debugging (eseguire il programma passo-passo per osservarne lo stato interno)
+	\item Dinamica e manuale, esempio: debugging (eseguire il programma passo dopo passo per osservarne lo stato interno)
     
 	\item Statica e manuale, esempio: manual auditing del codice (revisione manuale), verifica formale (dimostrare matematicamente la correttezza)
     
@@ -34,11 +34,11 @@ Da queste proprietà si possono derivare altre caratteristiche, ad esempio:
 	\item se un tool è complete allora deve mostrare esecuzioni del programma che permettono di verificare le vulnerabilità; quindi l'analisi è più dinamica, il programma viene lanciato con un set di input che possono causare problemi; la tecnica fornisce input concreti che triggerano vulnerabilità
 \end{itemize}
 
-La soundness è più legata alla static analysis, mentre la completeness alla dynamic analysis.
+La soundness è più legata alla static analysis (analisi su modello astratti del programma), mentre la completeness alla dynamic analysis (esecuzioni reali del programma).
 
-La \textbf{static analysis} consiste generalmente di modelli matematici astratti per l'esecuzione del programma per poi fare inferenza su quali possibili path potrebbero portare a vulnerabilità. 
+La \textbf{static analysis} consiste generalmente di modelli matematici astratti per l'esecuzione del programma per poi fare inferenza su quali possibili path potrebbero portare a vulnerabilità.
 
-La \textbf{dynamic analysis} invece utilizza esecuzioni più concrete per mostrare vulnerabilità effettive. 
+La \textbf{dynamic analysis} invece utilizza esecuzioni più concrete per mostrare vulnerabilità effettive.
 
 Solitamente, i tool di detection hanno un approccio \textit{ibrido}, usando tecniche statiche e dinamiche per ottenere un buon compromesso tra soundness e completeness. Il trade off si traduce in quanti falsi positivi e falsi negativi saranno presenti.
 
@@ -187,6 +187,17 @@ Le soluzioni a questo problema possono essere:
 	\item fornire un modello delle librerie per l'esecuzione
 \end{itemize}
 
+\paragraph{TL;DR:} Si vuole fingere un'esecuzione del programma con variabili simboliche, percorrendo ogni path e tenendo traccia delle condizioni necessarie per arrivare a ogni determinato stato del programma (path condition). 
+
+Una volta trovata una vulnerabilità (violazione di asserzioni stabilite per il programma) si usa un SMT solver (e.g., Z3) per risolvere la path condition del percorso, ottenendo la classe di input concreti che portano alla vulnerabilità (se la path condition è risolvibile).
+
+In generale:
+\begin{itemize}
+    \item Analisi statica: analizza il codice senza eseguirlo, deduce proprietà tramite modelli astratti, migliore scalabilità grazie all'astrazione di singoli percorsi (ad esempio, path sempre feasible)
+    
+    \item Symbolic execution: esegue il programma con valori simbolici, usati per considerare tutti i possibili input, i percorsi di esecuzione diversi vengono considerati tramite espressioni logiche (path conditions), scalabilità più limitata dovuta alla path explosion ($2^n$ path, $n$ numero di condizioni) e alla complessità delle path condition (rilevanti le performance dell'SMT solver)
+\end{itemize}
+
 \subsubsection{Concolic Execution}
 
 Anche chiamata \textbf{dynamic symbolic execution}, il nome viene da concrete+symbolic. Lavora con gli stessi concetti della symbolic execution ma è un ibrido tra analisi statica e dinamica.
@@ -206,6 +217,17 @@ In breve, la concolic execution parte da input simbolici concreti, associando al
 Per ogni diramazione del programma viene salvato lo stato che ha portato ad una determinata scelta all'interno di una shadow memory; vengono salvate tutte le condizioni che vengono attraversate. 
 
 Una volta arrivato alla fine del path (di una esecuzione) si può tornare indietro per determinare una condizione che permette di esplorare il path simmetrico (un altro path).
+
+\paragraph{TL;DR:} Si esegue il programma con un input concreto, ma si tiene traccia simbolicamente del percorso preso. Una volta terminata l'esecuzione si nega una delle condizioni del percorso e si usa un SMT solver per trovare un input che soddisfa la path condition modificata.
+
+\paragraph{Differenze:} Rispetto alla Symbolic execution: 
+\begin{itemize}
+    \item L'input è anche concreto, non solo simbolico, si ha un'esecuzione concreta
+    
+    \item Usando valori concreti è più facile gestire interazioni con il sistema operativo/librerie/puntatori e simili
+\end{itemize}
+
+In generale, la concolic execution permette migliore coverage nei casi in cui vengono richiesti input esterni (in quanto forniti concretamente), ma può essere meno efficiente in casi di branching logico pesante, in cui la symbolic execution riesce ad analizzare tutti i path risolvendo le path condition, mentre la concolic deve trovare input reali.
 
 \subsubsection{Search}
 
@@ -262,6 +284,17 @@ Per arrivare in una certa zona di memoria potrebbero servire determinate precond
 Vengono usate coverage heuristics per determinare delle priorità.
 
 \paragraph{Combined search:} Effettuare più ricerche allo stesso tempo, non esiste una soluzione one-size-fits-all, quindi potrebbe essere un'idea usare algoritmi di ricerca diversi (magari in maniera alternata) per raggiungere parti diverse del programma, sperando di avere una ricerca il più completa possibile.
+
+\paragraph{TL;DR:} Si vuole modellare l'esecuzione del programma come un DAG, bisogna esplorarlo in maniera \textit{sensata} per ottenere performance soddisfacenti. Alcuni metodi di ricerca:
+\begin{itemize}
+    \item BFS/DFS: tecnicamente funzionano, ma estremamente inefficienti, non usano informazioni aggiuntive, si bloccano facilmente
+    
+    \item Coverage-guidede heuristic: si cerca di coprire il maggior numero possibile di istruzioni, tenendo traccia del numero di volte in cui viene visitata ogni istruzione
+    
+    \item Generational search: si comincia con una generazione di esecuzioni complete random, le generazioni successive negano un branch di una esecuzione precedente per ottenere un nuovo percorso. Si usano coverage heuristic per determinare delle priorità nella ricerca
+    
+    \item Combined search: più algoritmi assieme, sperando in una ricerca il più completa possibile
+\end{itemize}
 
 \subsubsection{SMT Solvers}
 

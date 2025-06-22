@@ -32,9 +32,11 @@ Ad esempio: si presuppone che l'attaccante
 
 Va sempre definito un threat model con ciò che è e non è lecito fare da parte dell'attaccante. Se l'attaccante riesce a rompere questi presupposti il sistema di difesa viene effettivamente superato (ad esempio, disabilita l'IRM saltando i check).
 
+In generale, si presuppone che l'attaccante può scrivere cosa e dove vuole, ma non può modificare o inserire codice. A partire da questo si vuole evitare che ci siano deviazioni illegittime del flusso di controllo, permettendo transizioni solo verso destinazioni valide.
+
 \paragraph{Evitare compromissione del detector:} Per evitare che l'IRM venga disabilitato sicuramente serve che il codice sia immutabile e che sia presente una sufficiente randomness all'intero dei controlli stessi. 
 
-L'in-line monitor deve essere protetto da immutabilità e randomness.
+L'in-line monitor deve essere protetto da \textbf{immutabilità} e \textbf{randomness}.
 
 In termini di \textbf{efficienza}: il \textbf{Classic CFI} (2005 di Microsoft Research) portava un overhead medio del 16\%, con 45\% nel caso peggiore; funzionava solo su eseguibile, non sulle librerie. Nel 2014 si è raggiunto il \href{https://www.cse.psu.edu/~gxt29/papers/mcfi.pdf}{\textbf{\texttt{Modular CFI}}} (\href{https://www.cse.psu.edu/~gxt29/}{\texttt{pagina autore}}), un modello di CFI modulare con un overhead molto più basso (5\% in media, 12\% worst case), il quale è in grado di lavorare anche su librerie.
 

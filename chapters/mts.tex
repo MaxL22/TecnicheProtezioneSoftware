@@ -59,6 +59,36 @@ Effettuare il \textbf{controllo a ogni accesso} degrada le performance (soprattu
 
 Il compilatore di un linguaggio memory safe deve istanziare memoria aggiuntiva, \textit{per ogni puntatore}, e aggiungere il codice per i controlli, \textit{a ogni accesso}.
 
+\vfill
+
+\paragraph{Implementazione naive:}
+\begin{minted}{c}
+typedef struct {
+    int *ptr;
+    size_t e;
+} fint_ptr;
+
+fint_ptr make_fint(size_t n) {
+    fint_ptr f;
+    f.ptr = malloc(n * sizeof(int));
+    f.e = n;
+    return f;
+}
+
+bool get_fint(fint_ptr f, size_t i, int *out) {
+    if (i < 0 || i > f.e)
+        return false;
+    *out = *f.ptr + i;
+    return true;
+}
+
+void free_fint(fint_ptr *f) {
+    free(f->ptr);
+    f->ptr = NULL;
+    f->e = 0;
+}
+\end{minted}
+
 \paragraph{Low Fat Pointers:} Si tratta di una variante che vuole ridurre l'overhead in termini di spazio e prestazioni. 
 
 L'idea è quella di "codificare" all'interno dell'indirizzo stesso i metadati, permettendo alla rappresentazione nativa del puntatore di inglobare i metadati stessi. 
@@ -66,6 +96,17 @@ L'idea è quella di "codificare" all'interno dell'indirizzo stesso i metadati, p
 La disposizione della memoria viene usata per ricavare le informazioni prima salvate nei metadati, in tempo costante.
 
 La memoria virtuale viene divisa in "regioni", ciascuna riservata a oggetti di dimensioni simili. Questo consente di dedurre la dimensione di un oggetto basandosi solo sull'indirizzo del puntatore (se appartiene a quella regione deve avere una certa dimensione).
+
+Per implementarli, in generale:
+\begin{itemize}
+    \item Viene riservata una grande zona di memoria virtuale all'inizio dell'esecuzione del programma, per poi dividerla in sotto-regioni, una per taglia di allocazione possibile
+    
+    \item Ogni dimensione richiesta è arrotondata a quella superiore più vicina e l'allocatore restituisce un puntatore appartenente alla zona relativa
+    
+    \item Ogni sezione è grande quanto una potenza di 2 (uguale per tutte le regione, definita), quindi guardando solo i primi $n$ bit del puntatore (dove $2^n = $ \texttt{region\_size}) si può ottenere la base della regione, quindi la dimensione
+    
+    \item Dalla dimensione si può controllare se l'accesso al puntatore è valido
+\end{itemize}
 
 \subsubsection{Temporal Safety}
 
@@ -106,7 +147,16 @@ Le operazioni fatte sugli oggetti devono \textit{sempre} essere sempre compatibi
 
 In generale la type safety è \textit{più forte della memory safety}. 
 
-Esempio memory safe ma non type safe:
+Esempi memory safe ma non type safe:
+\begin{minted}{c}
+int x = 69;
+float y = 6.9;
+printf("Valore: %d \n", *(int *)&x);
+printf("Valore: %d \n", *(int *)&y); // Not type safe
+\end{minted}
+Non causa "problemi" ma stampa valori senza senso.
+
+Oppure
 \begin{minted}{c}
 int (*cmp) (char*,char*);
 int *p = (int*) malloc(sizeof(int));
@@ -174,6 +224,13 @@ Come viene scelto il valore della canary:
     \item Random \texttt{XOR} canaries: si sceglie un valore random, ma il return address diventa \texttt{ret} $:=$ \texttt{ret} $\oplus$ \texttt{canary}, tornando al valore originale al termine della funzione, "sabotando" un eventuale indirizzo di ritorno sovrascritto in quanto tornerà a un valore casuale al posto che all'indirizzo segnato. Permette di risparmiare sullo stack lo spazio della canary.
 \end{itemize}
 
+Per aggirarle:
+\begin{itemize}
+    \item Brute force: su sistemi a 32 bit, è possibile indovinare il valore della canary in tempo "ragionevole"
+    
+    \item Leak: vulnerabilità che permettono di stampare informazioni, ad esempio format string, possono portare a un leak del canary, da usare poi nel payload di overflow
+\end{itemize}
+
 \paragraph{Data Execution Prevention DEP:} La seconda fase dell'attacco è scrivere in memoria il codice ed eseguirlo. Per evitare che codice dell'attaccante possa essere eseguito si possono \textbf{rendere alcune zone di memoria}, come stack e heap, \textbf{non eseguibili}. 
 
 In questo modo, se anche viene bypassata la canary, il programma va in panico prima di eseguire codice posizionato nello stack/heap. 
@@ -193,6 +250,13 @@ Esistono diverse implementazioni, ma in generale bisogna notare che:
 	\item potrebbe essere applicato solo alle librerie (sempre position indipendent), ma non al codice del programma (potrebbero esserci riferimenti "statici" a zone del programma)
 
 	\item servono \textit{abbastanza} bit random, altrimenti si può fare brute-force (su architettura 32 bit non è sicuro, su 64 è già molto meglio)
+\end{itemize}
+
+Per aggirare l'ASLR: 
+\begin{itemize}
+    \item Sfruttare un information leak per leggere un puntatore e calcolare la posizione di stack/librerie
+    
+    \item L'offset tra istruzioni è fisso, cambia solo la posizione generale in memoria, sovrascrivere solo gli ultimi byte con un offset noto permette quindi di arrivare alle istruzioni richieste
 \end{itemize}
 
 %End L6
