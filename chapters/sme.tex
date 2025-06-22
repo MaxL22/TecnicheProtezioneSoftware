@@ -78,7 +78,7 @@ Il compilatore utilizza lo stack quando vengono chiamate le funzioni, \textbf{ne
 \begin{itemize}
 	\item Viene effettuata la \texttt{push} (istruzione macchina) dei parametri della funzione sullo stack
 	
-    \item L'istruzione macchina \texttt{call} viene chiamata, portando l'esecuzione all'indirizzo di memoria del codice della funzione
+    \item L'istruzione macchina \texttt{call} viene chiamata, portando l'esecuzione verso l'indirizzo di memoria del codice della funzione
 	
     \item La \texttt{call} effettua anche la \texttt{push} sullo stack dell'indirizzo di ritorno di una funzione, ovvero da dove proseguire l'esecuzione al termine della funzione 
 \end{itemize}
@@ -87,7 +87,7 @@ Dopo queste istruzioni comincia l'esecuzione della funzione stessa.
 
 All'\textbf{interno dello stack} vengono \textbf{memorizzate le variabili locali}: viene fatta una \texttt{push} di queste variabili all'interno dello stack.
 
-Al termine dell'esecuzione ci sarà un'istruzione \texttt{ret} che fa tornare l'\textbf{esecuzione all'indirizzo puntato dal return address} memorizzato in precedenza sullo stack (anche senza \texttt{return} esplicito, serve a continuare l'esecuzione del programma dopo la funzione).
+Al termine dell'esecuzione ci sarà un'istruzione \texttt{ret}, la quale farà tornare l'\textbf{esecuzione all'indirizzo puntato dal return address} memorizzato in precedenza sullo stack (anche senza \texttt{return} esplicito, serve a continuare l'esecuzione del programma dopo la funzione).
 
 La funzione di \texttt{ret}: 
 \begin{itemize}
