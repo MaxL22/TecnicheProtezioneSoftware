@@ -108,6 +108,25 @@ Per implementarli, in generale:
     \item Dalla dimensione si può controllare se l'accesso al puntatore è valido
 \end{itemize}
 
+Di conseguenza, una funzione del tipo: 
+\begin{minted}{c}
+char get(char *q, int i) {
+    return q[i];
+}
+\end{minted}
+Verrà instrumentata come: 
+\begin{minted}{c}
+char get(char *q, int i) {
+    char *q_base = base(q); // Base della regione di memoria
+    size_t q_size = size(q);// Dimensione della regione
+    char *r = q + i;        // Prende il valore
+    // Se il valore del puntatore è fuori dai limiti
+    if (r < q_base || r >= q_base + q_size)
+        report_oob_error(); // Errore
+    return *r;              // Altrimenti torna il valore
+}
+\end{minted}
+
 \subsubsection{Temporal Safety}
 
 Le regioni di memoria possono essere: 
