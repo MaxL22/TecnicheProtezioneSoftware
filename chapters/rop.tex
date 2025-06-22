@@ -188,7 +188,7 @@ Dopo aver trovato la canary si tira a indovinare, sovrascrivendo il return addre
 
 I gadget reali si trovano sfruttando questi due: sullo stack metto, in ordine
 \begin{enumerate}
-	\item indirizzo del gadget cercato
+	\item probe gadget, indirizzo del gadget cercato
 	
     \item stop gadget
 	
@@ -204,9 +204,10 @@ Provando a eseguire, il gadget cercato può essere:
 
 In questo modo si possono mappare i gadget in memoria a run-time, si trovano le posizioni delle \texttt{pop}. 
 
+Questa è l'idea base, ma cambiando il layout dello stack si possono trovare diversi tipi di gadget, ad esempio con probe, idle, idle, idle, stop si possono trovare gadget che fanno fino a 3 \texttt{pop} (quando crasha fa 3 pop); con stop, idle, stop, stop, \dots, si possono trovare \texttt{pop} di esattamente un valore.
+
 Per capire su che registro viene fatta la \texttt{pop}: non lo capisco, si provano a caso le \texttt{pop} trovate e quando torna indietro qualcosa dalla socket ho beccato la combinazione giusta (ha fatto la \texttt{write}).
 
-%TODO: maybe completa un po'
 L'indirizzo per la \texttt{write} lo si trova tirando a indovinare nella GOT.
 
 %End L7
